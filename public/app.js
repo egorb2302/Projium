@@ -181,7 +181,7 @@ const fieldRow = (p, [key, kind], rerender) => {
   const save = async (val, exp) => {
     if (val === exp) return
     try {
-      const next = await api(`/api/projects/${encodeURIComponent(p.name)}/field`, { key, value: val, expected: exp })
+      const next = await api(`/api/projects/${encodeURIComponent(p.name)}/field`, { key, value: val, expected: exp, fileId: p.fileId })
       expected = next.fields[key] ?? ''
       input.classList.remove('err')
       input.classList.add('saved')
@@ -209,7 +209,7 @@ const taskList = (p, rerender) => {
   const url = `/api/projects/${encodeURIComponent(p.name)}/task`
   const send = async body => {
     try {
-      rerender(await api(url, body))
+      rerender(await api(url, { ...body, fileId: p.fileId }))
     } catch (e) {
       toast(e.status === 409 ? t('reloaded', e.message) : e.message, true)
       if (e.status === 409) route()

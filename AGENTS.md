@@ -43,7 +43,9 @@ The goal is to read the owner's project notes **where they are, as they are**: P
 npm run --silent survey -- --dir "<folder with the project notes>"
 ```
 
-It prints every frontmatter key with how many notes use it, its value kinds (text, date, datetime with a space or a `T`, url, list) and, for short text keys, the values themselves; keys that look secret are never shown. It also prints `layoutHint` and the headings that hold checkboxes. Read-only.
+It prints every frontmatter key with how many notes use it, its value kinds (text, date, datetime with a space or a `T`, url, list) and, for short text keys, the values themselves; keys and values that look secret are never shown. It also prints `layoutHint` with `layoutAdvice`, `folderMismatch` (folders whose notes are not named like the folder), notes without frontmatter, and the headings that hold checkboxes (`usable: true` only for `##` headings). Read-only.
+
+**Keys Projium reads without a mapping.** A key in the notes named like a Projium field (`site`, `next_step`, `stage`, `repo` ...) is read as is. Watch for `site` in the survey: it turns on uptime checks of that URL every 10 minutes. Unless the owner said yes to that, set `"fields": { "site": null }`.
 
 **Choose the layout and the filter:**
 
@@ -53,26 +55,27 @@ It prints every frontmatter key with how many notes use it, its value kinds (tex
 | One note per project in a folder (`Clients/Acme Shop.md`) | `"layout": "flat"` |
 | Project notes spread over subfolders (`Clients/Acme/Acme Shop.md`, `Clients/Beta/Beta.md`) | `"layout": "flat", "recursive": true` |
 | Projects mixed with other notes | add `"filter"` on a key that marks projects, from the survey: `{ "type": "client-project" }`, `{ "tags": "project" }` |
-| One folder per project whose main note has another name (`Kestrel/kestrel-notes.md`) | `"layout": "flat", "recursive": true` with a filter, so the note is read wherever it sits |
+| One folder per project whose main note has another name (`Kestrel/kestrel-notes.md`) | `"layout": "flat", "recursive": true, "name": "folder"` with a filter: the note is read wherever it sits and the project is named after its folder (`"name": "title"` uses the note's `#` heading instead) |
 
 **Map the fields.** For each Projium field, find the owner's key in the survey and put it into `cards.fields`; map only what exists, leave the rest out rather than guess.
 
 | Owner's key usually called | Projium field |
 |---|---|
-| `status`, `state`, `phase` | `stage`, plus `cards.stages` for each value from the survey: active work → `development`; waiting for review, a client or feedback → `review`; fixing after review → `fixes`; finished and no longer worked on, closed, paused for good → `done`. A live product that still gets work is `development` or `fixes`, not `done`: `done` also stops its uptime checks. The owner's word stays visible as `status`. |
+| `status`, `state`, `phase` | `stage`, plus `cards.stages` for each value from the survey: active work → `development`; waiting for review, a client or feedback, on hold for a while → `review`; fixing after review → `fixes`; finished and no longer worked on, closed, paused for good → `done`. A live product that still gets work is `development` or `fixes`, not `done`: `done` also stops its uptime checks. The owner's word stays visible as `status`. The doctor names every word you have not mapped. |
 | `next`, `next action` | `next_step` |
 | `started`, `kickoff`, `brief`, `created` (when it marks the start of the work) | `spec_at` |
 | `design approved` | `design_pick_at` |
 | `first deploy`, `first_push`, `live since` | `first_push_at` |
 | `launched`, `released`, `mainnet` | `mainnet_at` |
-| `delivered`, `accepted`, `client` (who accepted) | `handed_over_at`, `accepted_at`, `accepted_by` |
+| `delivered`, `handed over` | `handed_over_at` |
+| `accepted` (a date) and the person who accepted the work | `accepted_at`, `accepted_by`. A `client` key usually names the customer, not who accepted: do not map it. |
 | `url`, `site`, `prod` | `site`: **ask first**, it turns on uptime checks |
 
-Keys with spaces cannot be mapped. Date and time formats are read as they are (`2026-10-20 09:30`, `2026-10-20T09:30`, date-only); writes keep each field's format. Times are in the owner's UTC offset (step 4).
+Keys with spaces cannot be mapped. Date and time formats are read as they are (`2026-10-20 09:30`, `2026-10-20T09:30`, with seconds, date-only); writes keep each field's format. Times are in the owner's UTC offset (step 4). Doctor's `cards[].fieldsFrom` shows which key each field was read from.
 
 **Tasks.** If the owner's to-dos are checkboxes under one heading (`## Todo`, `## Next`), set `"sections": { "tasks": "Todo" }`. Their own lines show as read-only tasks (no task id); tasks added from the dashboard get the Projium format `- [ ] text · due YYYY-MM-DD · p1 ^t-xxxx` in that section.
 
-**Repo.** A `repo:` key in the owner's frontmatter is read as is (relative to `reposDir`, absolute, `~/...`, or `none`); `~` means the home folder of the user who runs Projium. Otherwise a project is matched to `<reposDir>/<project name>`. When names differ and you may not edit the notes, say so in the report; with a yes, add `repo:` to the frontmatter. For a GitHub URL in a note, find the local clone and confirm it with `git -C <clone> remote get-url origin` when it has a remote.
+**Repos.** A project is matched to a folder in `reposDir` with its name, ignoring case, spaces and punctuation (`Acme Shop` finds `acme-shop`). For other names, add them to the config, no note edits needed: `"repos": { "Nebula Wallet": "nebula", "Old Blog": "none" }` (`none` for projects without code). A `repo:` key in the note wins over that; a backticked path after `Repo` in the note body also works. Notes often name the repo in prose (`Code: ~/src/lumen-site`, a GitHub URL): read it, find the local clone, confirm a URL with `git -C <clone> remote get-url origin` when the clone has a remote, and put it into `cards.repos`. `~` means the home folder of the user who runs Projium.
 
 **When the config is not enough** (projects live in a database or a single list note, or the owner wants Projium's own cards): create a new folder, for example `<vault>/Projium/`, with one card per project from [docs/card-template.md](docs/card-template.md), owner's yes first. Link each card to its source note with a full vault path (`Source note: [[Work/Clients/Acme Shop|Acme Shop]]`), record where each time came from in its `## Timeline`, and tell the owner that status and tasks now live in the cards.
 
@@ -90,7 +93,8 @@ npm run --silent init -- --projects "<absolute projectsDir>" --repos "<absolute 
 
 - `--offset` is the owner's UTC offset for the times in cards. Ask, or take it from their clock; set it explicitly where daylight saving applies. Keep the `=` form: `--offset -05:00` with a space is rejected, `--offset=-05:00` works.
 - `--transcripts "<folder>"` when Claude Code transcripts are not in `~/.claude/projects` of the user running Projium.
-- The `cards` part from step 2: `--layout flat`, `--recursive`, `--filter type=client-project` (repeat for more values), `--field stage=status` (repeat per field), `--stage "in progress=development"` (repeat per word), `--tasks-heading Todo`. Or write `cards` into the JSON by hand afterwards.
+- The `cards` part from step 2: `--layout flat`, `--recursive`, `--filter type=client-project` (repeat for more values), `--field stage=status` (repeat per field), `--stage "in progress=development"` (repeat per word), `--tasks-heading Todo`, `--name folder`, `--repo "Nebula Wallet=nebula"` (repeat per project). Turning a field off (`"site": null`) is done in the JSON. Or write the whole `cards` part into the JSON by hand afterwards.
+- `--transcripts` matters more than it looks: the default `~/.claude/projects` is the transcripts folder of the user running Projium. If that is not the owner's Claude Code user, pass the owner's folder.
 - Also: `--port`, `--readiness` (`"{name} readiness.md"` for the flat layout), `--lang en|ru`, `--ignore word1,word2` (projects whose name or repo path contains a word: no repo reads, no site checks), `--force` (replaces an existing config with only these flags; the old file is kept as `tracker.config.json.bak-<time>`, never overwritten).
 
 Example for flat client notes:

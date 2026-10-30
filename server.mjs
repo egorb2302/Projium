@@ -72,7 +72,7 @@ export const createApp = ({
   const timeCache = createTimeCache({ ignored, reviewers: new Set(reviewAgents) })
   const timeByCard = new Map()
 
-  const isIgnored = card => ignored(card.name) || [repoOf(reposRoot, card.name, card.text), ...declaredRepos(reposRoot, card.name, card.text)].some(p => p && ignored(p))
+  const isIgnored = card => ignored(card.name) || [repoOf(reposRoot, card.name, card.text, undefined, card.repoHint), ...declaredRepos(reposRoot, card.name, card.text, card.repoHint)].some(p => p && ignored(p))
 
   const previewUrl = card => {
     const rel = previewPath(card.fields.preview, projectsRoot, path.relative(projectsRoot, path.dirname(card.file)).replace(/\\/g, '/'))
@@ -83,7 +83,7 @@ export const createApp = ({
   const loadRepoInfo = card => {
     if (!repoLoads.has(card.name))
       repoLoads.set(card.name, (async () => {
-        const repo = repoOf(reposRoot, card.name, card.text, ignored)
+        const repo = repoOf(reposRoot, card.name, card.text, ignored, card.repoHint)
         const ready = card.readinessFile && within(projectsRoot, card.readinessFile) ? readiness(path.dirname(card.readinessFile), path.basename(card.readinessFile)) : null
         const info = { repo, og: ogImage(repo), readiness: ready, freshness: await freshness(repo, ready?.commit), updates: { ...updateFlags(repo), plan: releasePlan(repo), branches: await updateBranches(repo) } }
         repoCache.set(card.name, { ts: Date.now(), ttl: info.freshness.state === 'git-unavailable' ? 60e3 : 5 * 60e3, info })
@@ -107,7 +107,7 @@ export const createApp = ({
 
   const view = async (card, detail = false) => {
     const h = healthSummary(db, card.name)
-    const { text, file, fields, readinessFile: _readiness, ...rest } = card
+    const { text, file, fields, readinessFile: _readiness, repoHint: _hint, ...rest } = card
     const info = await repoInfo(card)
     return {
       ...rest,
@@ -134,7 +134,7 @@ export const createApp = ({
   }
 
   const refreshTime = async card => {
-    const repo = repoOf(reposRoot, card.name, card.text, ignored)
+    const repo = repoOf(reposRoot, card.name, card.text, ignored, card.repoHint)
     if (!repo) return timeByCard.delete(card.name)
     const started = clock()
     const got = await timeCache.collect(transcriptsRoot, repo)
@@ -313,8 +313,8 @@ export const createApp = ({
         return send(res, 200, await view(store.load(parts[2]), true))
       if (parts[0] === 'api' && parts[1] === 'projects' && parts[2] && req.method === 'POST') {
         const body = await readBody(req)
-        if (parts[3] === 'field') return send(res, 200, await view(store.saveField(parts[2], body.key, body.value, body.expected), true))
-        if (parts[3] === 'task') return send(res, 200, await view(store.saveTask(parts[2], body), true))
+        if (parts[3] === 'field') return send(res, 200, await view(store.saveField(parts[2], body.key, body.value, body.expected, body.fileId), true))
+        if (parts[3] === 'task') return send(res, 200, await view(store.saveTask(parts[2], body, body.fileId), true))
         if (parts[3] === 'refresh') {
           const card = store.load(parts[2])
           await repoInfo(card, true)

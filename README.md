@@ -69,7 +69,7 @@ npm run --silent doctor
 | `digest.command` | none | Command that sends the digest; the text is passed as the last argument. Overrides Telegram. |
 | `digest.env` | `[]` | Names of environment variables that command needs (for example `["SLACK_BOT_TOKEN"]`). `npm run start:bg` passes the server only system variables, Projium's own and these. |
 | `streak.repo` | none | A git clone the server commits a dated line to once a day and pushes. Leave it out unless you want that. |
-| `cards` | folder layout, Projium names | How notes are found and read: `layout` (`folder` or `flat`), `recursive`, `filter`, `fields` (Projium field → your key), `stages` (your words → Projium stages), `sections` (your tasks heading). See [docs/card-format.md](docs/card-format.md). |
+| `cards` | folder layout, Projium names | How notes are found and read: `layout` (`folder` or `flat`), `recursive`, `filter`, `name` (file, folder or title), `fields` (Projium field → your key, `null` to turn a field off), `stages` (your words → Projium stages), `sections` (your tasks heading), `repos` (project → repo folder). See [docs/card-format.md](docs/card-format.md). |
 
 Your notes in another shape, for example one note per client with `status: in progress` and a `## Todo` list:
 

@@ -20,6 +20,7 @@ A card entry:
 |---|---|
 | `name` | Folder name of the card. |
 | `hash` | Short hash of the card file as read. |
+| `fileId` | Short id of the note file. Send it back as `fileId` with every write: when the project name now resolves to another note (a new note with the same name appeared), the write is refused with `409` instead of going to the wrong file. |
 | `preview` | URL path of the cover image (`/vault/...` or `/og/...`), or `null`. |
 | `fields` | `status`, `stage`, `next_step`, `site`, `accepted_by`, `handed_over_at`, `accepted_at`, `spec_at`, `design_pick_at`, `first_push_at`, `mainnet_at` when present. Other frontmatter keys are never returned. |
 | `fieldKeys` | Fields mapped to the owner's own frontmatter keys (`cards.fields`), like `{ "stage": "status" }`. Writes go to those keys. |
@@ -44,8 +45,10 @@ Every write changes one thing and checks that it did not change since you read i
 **Set a field:** `POST /api/projects/<name>/field`
 
 ```json
-{ "key": "next_step", "value": "Ship update 3", "expected": "the value you read" }
+{ "key": "next_step", "value": "Ship update 3", "expected": "the value you read", "fileId": "from the card" }
 ```
+
+`fileId` is optional but recommended on every write (also for tasks).
 
 `key` is one of the editable fields (`stage`, `next_step`, `site`, `accepted_by`, `handed_over_at`, `accepted_at`, `spec_at`, `design_pick_at`, `first_push_at`, `mainnet_at`). `value` is a one-line string; `""` clears it. Dates are `YYYY-MM-DD`, times `YYYY-MM-DDTHH:MM`, `site` is `https://domain`. Returns the updated card. If the field changed meanwhile: `409` with `{ "error", "current" }`; resend with `expected` set to `current` if you still want to write.
 

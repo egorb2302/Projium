@@ -25,10 +25,12 @@ Projium uses the field names below. When the owner's notes already have their ow
 }
 ```
 
-- `fields`: Projium field → the owner's frontmatter key. The value is read from that key and the dashboard writes it back there; no Projium key is added to the note. The dashboard labels such fields with the owner key.
+- `fields`: Projium field → the owner's frontmatter key. The value is read from that key and the dashboard writes it back there; no Projium key is added to the note. The dashboard labels such fields with the owner key. A Projium-named key the notes already have (`site`, `next_step` ...) is read without a mapping; `null` turns a field off entirely, for example `"site": null` when the notes have `site:` keys that should not be checked.
+- `repos`: project name → repo folder (relative to `reposDir` or absolute) or `"none"`, for repos named differently from the project. A `repo:` key in the note wins. Without either, a project is matched to a folder in `reposDir` with the same name, ignoring case, spaces and punctuation (`Acme Shop` finds `acme-shop`).
+- `name` (flat layout): `file` (default) names a project by its file name, `folder` by the folder the note sits in (for `Kestrel/kestrel-notes.md`), `title` by the note's first `#` heading.
 - `stages`: the owner's words → Projium stages, case-insensitive. Writing a stage from the dashboard keeps the owner's current word when it already means that stage, otherwise writes the first word listed for it, or the Projium stage when none is listed. Words that are not mapped are shown as they are, and the doctor names them.
-- Times: `2026-10-20 09:30`, `2026-10-20T09:30`, seconds, and date-only `2026-10-20` (read as `00:00`) are all read. A write keeps the format the field already had: a space stays a space, a date-only field stays date-only when the new time is `00:00`.
-- A plain unquoted value stays unquoted when the dashboard rewrites it, as long as it is plain text; anything else is written quoted.
+- Times: `2026-10-20 09:30`, `2026-10-20T09:30`, with seconds, and date-only `2026-10-20` (read as `00:00`) are all read. A write keeps the separator and the seconds the field already had; a date-only field stays date-only when the new time is `00:00` and becomes `YYYY-MM-DDTHH:MM` otherwise.
+- A plain unquoted value stays unquoted when the dashboard rewrites it, as long as it is plain text; anything else is written quoted. Keys written as `status : x`, `"status": x` or with a tab before the colon are read and rewritten in place as `status: x`. Values that use YAML anchors, aliases, tags or flow lists and maps (`&a`, `*a`, `!!str`, `[...]`, `{...}`) are read-only in the dashboard.
 - `sections`: the heading text (without `##`) of the tasks, updates and timeline sections.
 
 Run `npm run --silent survey` to see which keys, values, date formats and checkbox headings the notes actually use before writing the mapping.
@@ -44,7 +46,7 @@ Keep it flat: one `key: value` per line. Multi-line values, block scalars and du
 | `next_step` | one line | Card and digest. |
 | `site` | `"https://domain"` | Uptime check every 10 minutes while the stage is not `done`, plus the prod flag read (below). Public https domains only. |
 | `preview` | `"preview.jpg"`, `"alpha/shot.png"` or an Obsidian link `"[[Projects/alpha/preview.png]]"` | Cover image. A bare file name is looked up in the card's folder. png, jpg or webp, inside `projectsDir` only. Without it, the repo's `public/og.*` image is used. |
-| `repo` | `"alpha"`, `"~/code/alpha"`, an absolute path, or `none` | The git repo of the project, relative to `reposDir`. Without it, the tracker uses a `Repo: \`<absolute path>\`` line in the card body, then a folder in `reposDir` named like the card. `none` marks a project without code: no repo lookup, no warning. |
+| `repo` | `"alpha"`, `"~/code/alpha"`, an absolute path, or `none` | The git repo of the project, relative to `reposDir`. Without it, the tracker uses `cards.repos`, then a `Repo: \`<path>\`` line in the card body (a backticked absolute path, `C:\...`, `C:/...`, `/...` or `~/...`), then a folder in `reposDir` named like the card, ignoring case, spaces and punctuation. `none` marks a project without code: no repo lookup, no warning. |
 | `spec_at`, `design_pick_at`, `first_push_at`, `mainnet_at` | `YYYY-MM-DDTHH:MM` | Milestone durations and the time split. Read in the `utcOffset` time zone. |
 | `handed_over_at`, `accepted_at` | `YYYY-MM-DD` | Shown on the card. |
 | `accepted_by` | text | Shown on the card. |
