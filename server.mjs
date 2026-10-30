@@ -4,7 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createStore, Conflict } from './lib/store.mjs'
 import { validate, EDITABLE } from './lib/card.mjs'
-import { repoOf, readiness, freshness, updateFlags, releasePlan, updateBranches, ogImage } from './lib/repo.mjs'
+import { repoOf, declaredRepos, readiness, freshness, updateFlags, releasePlan, updateBranches, ogImage } from './lib/repo.mjs'
 import { fetchConfig, updateStatus } from './lib/prod.mjs'
 import { createTimeCache, projectSplit } from './lib/timesplit.mjs'
 import { openDb, checkSite, recordHealth, healthSummary, pruneHealth } from './lib/health.mjs'
@@ -68,7 +68,7 @@ export const createApp = ({
   const timeCache = createTimeCache({ ignored, reviewers: new Set(reviewAgents) })
   const timeByCard = new Map()
 
-  const isIgnored = card => ignored(card.name) || ignored(repoOf(reposRoot, card.name, card.text) ?? '')
+  const isIgnored = card => ignored(card.name) || [repoOf(reposRoot, card.name, card.text), ...declaredRepos(reposRoot, card.name, card.text)].some(p => p && ignored(p))
 
   const previewUrl = card => {
     const rel = previewPath(card.fields.preview, projectsRoot, card.name)

@@ -220,7 +220,6 @@ test('an ignored project site is never probed, on the tick or on Recheck', async
     await app.stop()
     fs.rmSync(dir, { recursive: true, force: true })
   })
-  fs.mkdirSync(path.join(dir, 'repos', 'private-clients', 'shop', '.git'), { recursive: true })
   fs.mkdirSync(path.join(projects, 'shop'))
   fs.writeFileSync(path.join(projects, 'shop', 'shop.md'), ['---', 'stage: fixes', 'site: "https://shop.example.com"', 'repo: "private-clients/shop"', 'next_step: "HIDDEN-STEP"', '---', ''].join('\n'))
   await app.healthTick()

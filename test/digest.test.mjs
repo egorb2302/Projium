@@ -40,6 +40,11 @@ test('the digest speaks English by default and shows ignored projects by name on
   assert.match(text, /Dashboard: http:\/\/127\.0\.0\.1:4000$/)
 })
 
+test('a HEAD rolled back behind the audit is named as such in the digest', () => {
+  const text = buildDigest([card('alpha', 'fixes', { repoInfo: { freshness: { state: 'changed-after', commit: 'abc1234', sinceLocal: 0, behindAudit: 2, sinceOrigin: 0, dirty: 0 } } })], at('2026-10-24T07:00:00Z'))
+  assert.match(text, /Audit: audit is stale: HEAD is 2 commit\(s\) behind abc1234\n/)
+})
+
 test('a digest command gets the text as its last argument and its failure names only the exit', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-cmd-'))
   try {
