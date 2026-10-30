@@ -1,4 +1,4 @@
-# vibe-tracker
+# Projium
 
 A local dashboard over your project notes, for builders who ship client projects with AI agents and keep a Markdown card per project (Obsidian or any folder of `.md` files).
 
@@ -23,8 +23,8 @@ Optional: a daily digest to Telegram (or any command you name).
 You need [Node.js](https://nodejs.org) 24 or newer and git. No packages to install.
 
 ```
-git clone https://github.com/<owner>/vibe-tracker.git
-cd vibe-tracker
+git clone https://github.com/egorb2302/Projium.git
+cd Projium
 npm start
 ```
 

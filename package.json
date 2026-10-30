@@ -1,5 +1,5 @@
 {
-  "name": "vibe-tracker",
+  "name": "projium",
   "version": "0.1.0",
   "description": "Local dashboard over Markdown project cards: stages, tasks, audits, uptime and build time from Claude Code transcripts",
   "license": "MIT",
