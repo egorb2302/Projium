@@ -68,6 +68,8 @@ export const createApp = ({
   const timeCache = createTimeCache({ ignored, reviewers: new Set(reviewAgents) })
   const timeByCard = new Map()
 
+  const isIgnored = card => ignored(card.name) || ignored(repoOf(reposRoot, card.name, card.text) ?? '')
+
   const previewUrl = card => {
     const rel = previewPath(card.fields.preview, projectsRoot, card.name)
     return rel && within(projectsRoot, path.resolve(projectsRoot, rel)) ? `/vault/${rel.split('/').map(encodeURIComponent).join('/')}` : null
@@ -112,6 +114,7 @@ export const createApp = ({
       repoInfo: { ...info, repo: info.repo ? path.basename(info.repo) : null, og: undefined },
       health: detail ? h : { ...h, history: undefined },
       zone: formatOffset(utcOffset),
+      ignored: isIgnored(card),
     }
   }
 
@@ -152,7 +155,7 @@ export const createApp = ({
     }
   }
 
-  const probeable = card => !card.error && !ignored(card.name) && card.fields.site && !validate('site', card.fields.site)
+  const probeable = card => !card.error && !isIgnored(card) && card.fields.site && !validate('site', card.fields.site)
   const watched = card => probeable(card) && card.fields.stage !== 'done'
   const checkProd = async card => {
     const [health, config] = await Promise.all([probeSite(card.fields.site), readConfig(card.fields.site)])

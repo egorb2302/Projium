@@ -211,7 +211,7 @@ test('an ignored project site is never probed, on the tick or on Recheck', async
   fs.writeFileSync(path.join(projects, 'secret-app', 'secret-app.md'), ['---', 'stage: fixes', 'site: "https://secret.example.com"', '---', ''].join('\n'))
   let probes = 0
   const app = createApp({
-    projectsRoot: projects, reposRoot: path.join(dir, 'repos'), dbFile: path.join(dir, 'db', 't.db'), port: 0, checkHealth: false, ignore: ['secret'],
+    projectsRoot: projects, reposRoot: path.join(dir, 'repos'), dbFile: path.join(dir, 'db', 't.db'), port: 0, checkHealth: false, ignore: ['secret', 'private-clients'],
     probeSite: async () => (probes++, { code: 200, ms: 1, error: null }),
     readConfig: async () => (probes++, cfg({})),
   })
@@ -220,7 +220,16 @@ test('an ignored project site is never probed, on the tick or on Recheck', async
     await app.stop()
     fs.rmSync(dir, { recursive: true, force: true })
   })
+  fs.mkdirSync(path.join(dir, 'repos', 'private-clients', 'shop', '.git'), { recursive: true })
+  fs.mkdirSync(path.join(projects, 'shop'))
+  fs.writeFileSync(path.join(projects, 'shop', 'shop.md'), ['---', 'stage: fixes', 'site: "https://shop.example.com"', 'repo: "private-clients/shop"', 'next_step: "HIDDEN-STEP"', '---', ''].join('\n'))
   await app.healthTick()
+  const shop = await new Promise((resolve, reject) => http.get({ host: '127.0.0.1', port, path: '/api/digest', headers: { host: `127.0.0.1:${port}` } }, res => {
+    let s = ''
+    res.on('data', c => (s += c))
+    res.on('end', () => resolve(JSON.parse(s).text))
+  }).on('error', reject))
+  assert.ok(!shop.includes('HIDDEN-STEP'), 'a project ignored by its repo path stays out of the digest')
   const status = await new Promise((resolve, reject) => {
     const req = http.request({ host: '127.0.0.1', port, method: 'POST', path: '/api/projects/secret-app/refresh', headers: { host: `127.0.0.1:${port}`, 'content-type': 'application/json' } }, res => (res.resume(), resolve(res.statusCode)))
     req.on('error', reject)

@@ -158,6 +158,7 @@ const freshnessText = info => {
   if (f.state === 'current') return t('auditCurrent', f.commit, from)
   const parts = []
   if (f.sinceLocal) parts.push(t('commitsLocal', f.sinceLocal))
+  if (f.behindAudit) parts.push(t('commitsBehind', f.behindAudit))
   if (f.sinceOrigin) parts.push(t('commitsOrigin', f.sinceOrigin))
   if (f.dirty) parts.push(t('dirtyFiles', f.dirty))
   return t('auditChanged', f.commit, from, parts.join(', '))

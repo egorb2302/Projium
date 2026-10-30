@@ -4,7 +4,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { readFields, setField, readTasks, addTask, replaceTask, formatTask, validate, timelineRows, updateLines, lockedFields, toggleLine } from '../lib/card.mjs'
-import { auditedCommit, repoOf, ogImage } from '../lib/repo.mjs'
+import { execFileSync } from 'node:child_process'
+import { auditedCommit, repoOf, ogImage, freshness } from '../lib/repo.mjs'
 import { createStore } from '../lib/store.mjs'
 import { ignoreTest } from '../lib/config.mjs'
 
@@ -222,6 +223,36 @@ test('a repo comes from the repo field first, then a Repo line with an absolute 
   assert.equal(repoOf(dir, 'demo', `Repo: \`${path.join(dir, 'other')}\``), path.join(dir, 'other'))
   assert.equal(repoOf(path.join(dir, 'nope'), 'demo', ''), null)
   fs.rmSync(dir, { recursive: true, force: true })
+})
+
+test('audit freshness flags commits after the audit, a HEAD rolled back behind it, and untracked files', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-fresh-'))
+  const g = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8', windowsHide: true }).trim()
+  try {
+    g('init', '--quiet', '-b', 'main')
+    g('config', 'user.name', 'test')
+    g('config', 'user.email', 'test@example.com')
+    const commit = n => {
+      fs.writeFileSync(path.join(dir, 'f.txt'), `${n}\n`)
+      g('add', '.')
+      g('commit', '--quiet', '-m', `c${n}`)
+      return g('rev-parse', '--short=7', 'HEAD')
+    }
+    const a = commit(1)
+    const b = commit(2)
+    assert.equal((await freshness(dir, b)).state, 'current')
+    commit(3)
+    assert.deepEqual([(await freshness(dir, b)).state, (await freshness(dir, b)).sinceLocal], ['changed-after', 1])
+    g('reset', '--quiet', '--hard', a)
+    const back = await freshness(dir, b)
+    assert.deepEqual([back.state, back.behindAudit], ['changed-after', 1])
+    g('reset', '--quiet', '--hard', b)
+    fs.writeFileSync(path.join(dir, 'new-source.js'), 'x')
+    const untracked = await freshness(dir, b)
+    assert.deepEqual([untracked.state, untracked.dirty], ['changed-after', 1])
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 test('og image: public folders up to two levels deep, plain og.* first, never node_modules', () => {
