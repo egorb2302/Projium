@@ -1,0 +1,18 @@
+# Projium
+
+> Local dashboard (Node 24, no dependencies, 127.0.0.1 only) over Markdown project cards: stages, tasks, milestone times, readiness-audit freshness against git, site uptime, prod feature flags, and build time split from Claude Code transcripts (timestamps only). Agents install it with AGENTS.md, check it with `npm run doctor` (JSON) and use it through a local HTTP API.
+
+## Setup
+
+- [AGENTS.md](https://github.com/egorb2302/Projium/blob/main/AGENTS.md): step-by-step playbook for an agent installing Projium for its owner, with ground rules and checks
+- [README.md](https://github.com/egorb2302/Projium/blob/main/README.md): features, config keys, privacy and safety
+- [tracker.config.schema.json](https://github.com/egorb2302/Projium/blob/main/tracker.config.schema.json): JSON schema of the config file
+
+## Formats
+
+- [docs/card-format.md](https://github.com/egorb2302/Projium/blob/main/docs/card-format.md): card frontmatter, tasks, readiness file, repo conventions
+- [docs/card-template.md](https://github.com/egorb2302/Projium/blob/main/docs/card-template.md): a card to copy
+
+## Use
+
+- [docs/api.md](https://github.com/egorb2302/Projium/blob/main/docs/api.md): read projects, set fields, add and toggle tasks over HTTP

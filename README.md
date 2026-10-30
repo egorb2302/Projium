@@ -18,6 +18,19 @@ Optional: a daily digest to Telegram (or any command you name).
 
 ![Project page](docs/screenshot-project.png)
 
+## Let your AI agent set it up
+
+Paste this to Claude Code, Codex or any agent that can run commands on your computer:
+
+```
+Install Projium (https://github.com/egorb2302/Projium) on this computer and connect it
+to my project notes. Follow AGENTS.md in the repo step by step and finish when
+npm run doctor reports ok. Ask me before you edit or create any notes, add a token,
+or set up autostart.
+```
+
+The agent reads [AGENTS.md](AGENTS.md): where to look for your notes, how to map them to cards, `npm run init` to write the config and `npm run doctor`, a JSON check that says exactly what is missing. Afterwards your agents can read and update projects through the [local API](docs/api.md).
+
 ## Run it
 
 You need [Node.js](https://nodejs.org) 24 or newer and git. No packages to install.
@@ -34,7 +47,12 @@ On Windows, `start-tracker.cmd` starts the server if it is not running and opens
 
 ## Point it at your projects
 
-Copy `tracker.config.example.json` to `tracker.config.json` and edit it. The file is git-ignored. Relative paths resolve from the config file's folder; `~` is your home folder.
+```
+npm run init -- --projects "C:/path/to/Projects" --repos "C:/path/to/code" --offset=+03:00
+npm run doctor
+```
+
+`init` writes `tracker.config.json` (git-ignored); `doctor` prints a JSON report of what is shown, what is skipped and why, and exits 0 once the setup is complete. You can also copy `tracker.config.example.json` and edit it by hand ([schema](tracker.config.schema.json)). Relative paths resolve from the config file's folder; `~` is your home folder.
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -51,7 +69,7 @@ Copy `tracker.config.example.json` to `tracker.config.json` and edit it. The fil
 | `digest.command` | none | Command that sends the digest; the text is passed as the last argument. Overrides Telegram. |
 | `streak.repo` | none | A git clone the server commits a dated line to once a day and pushes. Leave it out unless you want that. |
 
-The card format, the readiness file and the optional repo conventions are in [docs/card-format.md](docs/card-format.md).
+The card format, the readiness file and the optional repo conventions are in [docs/card-format.md](docs/card-format.md); a card to copy is in [docs/card-template.md](docs/card-template.md).
 
 ### Telegram digest
 

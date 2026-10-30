@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Projium config (tracker.config.json)",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "projectsDir": { "type": "string", "description": "Folder with one subfolder per project holding <name>/<name>.md. Relative to the config file; ~ is the home folder." },
+    "reposDir": { "type": "string", "description": "Folder where project repos are cloned; a repo is matched by folder name unless the card sets repo." },
+    "transcriptsDir": { "type": "string", "description": "Claude Code transcripts for the time split.", "default": "~/.claude/projects" },
+    "dbFile": { "type": "string", "description": "SQLite file for uptime history and the digest log.", "default": "data/tracker.db" },
+    "port": { "type": "integer", "minimum": 0, "maximum": 65535, "default": 3210, "description": "PORT in .env.local or the environment wins." },
+    "utcOffset": { "type": "string", "pattern": "^([+-](0\\d|1[0-4]):[0-5]\\d|local)$", "description": "Time zone of card times and of the digest day. Defaults to the computer's offset at start." },
+    "readinessFile": { "type": "string", "pattern": "^[^\\\\/]+\\.[mM][dD]$", "default": "READINESS.md" },
+    "ignore": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Words; a project whose name or repo path contains one is never probed and its repo and transcripts are never read." },
+    "reviewAgents": { "type": "array", "items": { "type": "string" }, "default": ["code-reviewer"], "description": "Claude Code subagent types counted as review time." },
+    "digest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "at": { "type": "string", "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$", "default": "10:00" },
+        "lang": { "enum": ["en", "ru"], "default": "en" },
+        "command": { "type": "array", "items": { "type": "string" }, "minItems": 1, "description": "Command that sends the digest; the text is appended as the last argument. Overrides Telegram." }
+      }
+    },
+    "streak": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repo"],
+      "properties": {
+        "repo": { "type": "string" },
+        "branch": { "type": "string", "default": "main" },
+        "file": { "type": "string", "default": "daily.log" }
+      }
+    }
+  }
+}

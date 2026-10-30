@@ -1,4 +1,5 @@
 {
+  "$schema": "./tracker.config.schema.json",
   "projectsDir": "C:/Users/you/Obsidian/Vault/Projects",
   "reposDir": "C:/Users/you/code",
   "transcriptsDir": "~/.claude/projects",

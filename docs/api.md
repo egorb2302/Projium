@@ -1,0 +1,75 @@
+# HTTP API
+
+The dashboard's own API, usable by scripts and agents on the same computer. Base URL `http://127.0.0.1:3210` (or the configured port).
+
+Rules for every request:
+
+- The `Host` header must be `127.0.0.1:<port>` or `localhost:<port>`; anything else gets `403`. curl and most clients send it from the URL.
+- POST bodies are JSON with `content-type: application/json` (otherwise `415`), at most 64 KB. A browser `Origin` header, if present, must be local.
+- Errors come back as `{ "error": "..." }` with `400`, `404`, `409` or `500`.
+
+## Read
+
+`GET /api/projects` returns an array, one entry per card. A card that cannot be read appears as `{ "name", "error" }`.
+
+`GET /api/projects/<name>` returns one card with uptime history. `<name>` is the card folder name, URL-encoded.
+
+A card entry:
+
+| Key | Content |
+|---|---|
+| `name` | Folder name of the card. |
+| `fields` | `status`, `stage`, `next_step`, `site`, `accepted_by`, `handed_over_at`, `accepted_at`, `spec_at`, `design_pick_at`, `first_push_at`, `mainnet_at` when present. Other frontmatter keys are never returned. |
+| `locked` | Field names the dashboard will not write (not a plain one-line value in the card). |
+| `tasks` | `{ id, done, text, due, p }`; `readonly: true` for tasks without a `^t-` id. |
+| `updates`, `timeline` | Lines of `## Updates` and rows of the `## Timeline` table. |
+| `repoInfo` | `repo` (folder name), `readiness` (`proven`, `total`, `audit`, `commit`), `freshness` (`state`: `current`, `changed-after`, `no-audit-commit`, `audit-commit-unknown`, `git-unavailable`, `no-repo`, plus commit counts), `updates` (release plan and update branches). |
+| `health` | `last` check `{ ts, code, ms, error }`, `uptime24` (percent), `checks24`. |
+| `prodUpdates` | Per update: `state` (`on`, `off`, `partly`, `merged`, `branch`, `unknown`) and its flags. |
+| `timeSplit` | Per phase (`toFirstPush`, `toMainnet`, `total`): milliseconds of `work`, `review`, `waiting`, `pause`, `missing`. |
+| `zone` | The configured UTC offset, like `+03:00`. |
+| `ignored` | `true` for projects matched by the `ignore` list. |
+
+`GET /api/digest` returns `{ text, at, enabled, lastAuto, lastManual }`: the digest as it would be sent now. Nothing is sent.
+
+## Write
+
+Every write changes one thing and checks that it did not change since you read it.
+
+**Set a field:** `POST /api/projects/<name>/field`
+
+```json
+{ "key": "next_step", "value": "Ship update 3", "expected": "the value you read" }
+```
+
+`key` is one of the editable fields (`stage`, `next_step`, `site`, `accepted_by`, `handed_over_at`, `accepted_at`, `spec_at`, `design_pick_at`, `first_push_at`, `mainnet_at`). `value` is a one-line string; `""` clears it. Dates are `YYYY-MM-DD`, times `YYYY-MM-DDTHH:MM`, `site` is `https://domain`. Returns the updated card. If the field changed meanwhile: `409` with `{ "error", "current" }`; resend with `expected` set to `current` if you still want to write.
+
+**Add a task:** `POST /api/projects/<name>/task`
+
+```json
+{ "op": "add", "task": { "text": "Write the client readme", "due": "2026-11-05", "p": "p2" } }
+```
+
+`due` and `p` (`p1`, `p2`, `p3`) are optional. The text must be one line without `^` or ` · `. A `## Tasks` section is created when missing.
+
+**Toggle or edit a task:**
+
+```json
+{ "op": "toggle", "id": "t-a1b2", "expected": { "done": false, "text": "...", "due": "", "p": "p1" } }
+{ "op": "edit", "id": "t-a1b2", "expected": { "...": "as read" }, "task": { "text": "New text", "due": "", "p": "p2" } }
+```
+
+`expected` is the task exactly as you read it; a mismatch returns `409`.
+
+**Recheck now:** `POST /api/projects/<name>/refresh` with `{}` re-reads git, the live site and transcripts for that card.
+
+**Send the digest now:** `POST /api/digest/send` with `{}`. `409` when no channel is configured or a send is in progress.
+
+## Example
+
+```
+curl -s http://127.0.0.1:3210/api/projects/orbit-swap
+curl -s -X POST http://127.0.0.1:3210/api/projects/orbit-swap/task \
+  -H "content-type: application/json" \
+  -d '{"op":"add","task":{"text":"Check the leaderboard","p":"p2"}}'
+```

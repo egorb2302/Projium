@@ -2,7 +2,7 @@ import http from 'node:http'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createStore, Conflict } from './lib/store.mjs'
+import { createStore, Conflict, publicError } from './lib/store.mjs'
 import { validate, EDITABLE } from './lib/card.mjs'
 import { repoOf, declaredRepos, readiness, freshness, updateFlags, releasePlan, updateBranches, ogImage } from './lib/repo.mjs'
 import { fetchConfig, updateStatus } from './lib/prod.mjs'
@@ -18,7 +18,7 @@ const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; ch
 
 const SHOWN_FIELDS = ['status', ...EDITABLE]
 
-export const publicError = e => (typeof e?.code === 'string' && /^E[A-Z]+$/.test(e.code) ? e.code : String(e?.message ?? e))
+export { publicError }
 
 export const within = (root, file) => {
   try {
@@ -392,6 +392,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     sendDigest: digestSender(c.digest),
     streak: c.streak,
   })
+  if (c.unknownKeys.length) console.error(`config: unknown keys ignored: ${c.unknownKeys.join(', ')} (run npm run doctor)`)
   const port = await app.start()
-  console.log(`tracker: http://127.0.0.1:${port} (${c.file ? `config ${c.file}` : 'no config file, showing the demo projects'})`)
+  console.log(`projium: http://127.0.0.1:${port} (${c.file ? `config ${c.file}` : 'no config file, showing the demo projects'})`)
 }
