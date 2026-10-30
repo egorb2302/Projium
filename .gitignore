@@ -1,0 +1,5 @@
+.env.local
+tracker.config.json
+data/
+node_modules/
+.local/

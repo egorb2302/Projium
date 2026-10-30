@@ -1,0 +1,14 @@
+{
+  "projectsDir": "C:/Users/you/Obsidian/Vault/Projects",
+  "reposDir": "C:/Users/you/code",
+  "transcriptsDir": "~/.claude/projects",
+  "port": 3210,
+  "utcOffset": "+03:00",
+  "readinessFile": "READINESS.md",
+  "ignore": ["old-client-site"],
+  "reviewAgents": ["code-reviewer"],
+  "digest": {
+    "at": "10:00",
+    "lang": "en"
+  }
+}
