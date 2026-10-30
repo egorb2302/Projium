@@ -22,6 +22,7 @@ A card entry:
 | `hash` | Short hash of the card file as read. |
 | `preview` | URL path of the cover image (`/vault/...` or `/og/...`), or `null`. |
 | `fields` | `status`, `stage`, `next_step`, `site`, `accepted_by`, `handed_over_at`, `accepted_at`, `spec_at`, `design_pick_at`, `first_push_at`, `mainnet_at` when present. Other frontmatter keys are never returned. |
+| `fieldKeys` | Fields mapped to the owner's own frontmatter keys (`cards.fields`), like `{ "stage": "status" }`. Writes go to those keys. |
 | `locked` | Field names the dashboard will not write (not a plain one-line value in the card). |
 | `tasks` | `{ id, done, text, due, p }`; `readonly: true` for tasks without a `^t-` id. |
 | `updates`, `timeline` | Lines of `## Updates` and rows of the `## Timeline` table. |

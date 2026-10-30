@@ -1,6 +1,6 @@
 # Projium
 
-A local dashboard over your project notes, for builders who ship client projects with AI agents and keep a Markdown card per project (Obsidian or any folder of `.md` files).
+A local dashboard over your project notes, for builders who ship client projects with AI agents and keep a Markdown note per project (Obsidian or any folder of `.md` files). It reads your notes where they are, in your own layout, field names and status words.
 
 ![Projects](docs/screenshot-projects.png)
 
@@ -69,6 +69,21 @@ npm run --silent doctor
 | `digest.command` | none | Command that sends the digest; the text is passed as the last argument. Overrides Telegram. |
 | `digest.env` | `[]` | Names of environment variables that command needs (for example `["SLACK_BOT_TOKEN"]`). `npm run start:bg` passes the server only system variables, Projium's own and these. |
 | `streak.repo` | none | A git clone the server commits a dated line to once a day and pushes. Leave it out unless you want that. |
+| `cards` | folder layout, Projium names | How notes are found and read: `layout` (`folder` or `flat`), `recursive`, `filter`, `fields` (Projium field → your key), `stages` (your words → Projium stages), `sections` (your tasks heading). See [docs/card-format.md](docs/card-format.md). |
+
+Your notes in another shape, for example one note per client with `status: in progress` and a `## Todo` list:
+
+```json
+"cards": {
+  "layout": "flat",
+  "filter": { "type": "client-project" },
+  "fields": { "stage": "status", "spec_at": "started" },
+  "stages": { "in progress": "development", "waiting for client review": "review", "shipped": "done" },
+  "sections": { "tasks": "Todo" }
+}
+```
+
+`npm run --silent survey -- --dir <folder>` lists the keys, values and checkbox headings your notes use, to write this mapping from.
 
 The card format, the readiness file and the optional repo conventions are in [docs/card-format.md](docs/card-format.md); a card to copy is in [docs/card-template.md](docs/card-template.md).
 

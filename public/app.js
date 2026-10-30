@@ -170,7 +170,8 @@ const fieldRow = (p, [key, kind], rerender) => {
   const input = kind === 'stage'
     ? h('select', { id }, STAGES.map(s => h('option', { value: s, selected: s === value }, stageName(s))))
     : h('input', { id, value, type: kind === 'date' ? 'date' : kind === 'time' ? 'datetime-local' : 'text', lang: t('locale') })
-  const row = h('div', { class: 'field' }, h('label', { for: id }, t('fields')[key]), input)
+  const owner = p.fieldKeys?.[key]
+  const row = h('div', { class: 'field' }, h('label', { for: id, title: owner ? t('ownerKey', owner) : null }, t('fields')[key], owner ? h('span', { class: 'muted' }, ` · ${owner}`) : null), input)
   if (p.locked?.includes(key)) {
     input.disabled = true
     input.title = t('locked')

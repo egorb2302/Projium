@@ -31,13 +31,13 @@ export const within = (root, file) => {
   }
 }
 
-export const previewPath = (value, projectsRoot, cardName) => {
+export const previewPath = (value, projectsRoot, cardDir) => {
   const raw = String(value ?? '').trim().replace(/^!?\[\[/, '').replace(/(\|[^\]]*)?\]\]$/, '').replace(/\\/g, '/')
   if (!/\.(png|jpe?g|webp)$/i.test(raw)) return null
   const marker = `${path.basename(projectsRoot)}/`
   const at = raw.lastIndexOf(marker)
   if (at >= 0 && (at === 0 || raw[at - 1] === '/')) return raw.slice(at + marker.length)
-  return raw.includes('/') ? raw : `${cardName}/${raw}`
+  return raw.includes('/') || !cardDir ? raw : `${cardDir}/${raw}`
 }
 
 export const createApp = ({
@@ -57,6 +57,7 @@ export const createApp = ({
   utcOffset = 0,
   ignore = [],
   readinessFile = 'READINESS.md',
+  cards = {},
   reviewAgents = ['code-reviewer'],
   onShutdown = null,
 } = {}) => {
@@ -64,7 +65,7 @@ export const createApp = ({
   if (digestMinutes == null) throw new Error(`digest time must be HH:MM, got ${digestAt}`)
   const ignored = ignoreTest(ignore)
   const streak = streakOpts && createStreak({ ...streakOpts, atMinutes: digestMinutes, notify: sendDigest, clock, offsetMin: utcOffset, lang: digestLang })
-  const store = createStore(projectsRoot)
+  const store = createStore(projectsRoot, { ...cards, readinessFile })
   const db = openDb(dbFile)
   const repoCache = new Map()
   const prodCache = new Map()
@@ -74,7 +75,7 @@ export const createApp = ({
   const isIgnored = card => ignored(card.name) || [repoOf(reposRoot, card.name, card.text), ...declaredRepos(reposRoot, card.name, card.text)].some(p => p && ignored(p))
 
   const previewUrl = card => {
-    const rel = previewPath(card.fields.preview, projectsRoot, card.name)
+    const rel = previewPath(card.fields.preview, projectsRoot, path.relative(projectsRoot, path.dirname(card.file)).replace(/\\/g, '/'))
     return rel && within(projectsRoot, path.resolve(projectsRoot, rel)) ? `/vault/${rel.split('/').map(encodeURIComponent).join('/')}` : null
   }
 
@@ -83,7 +84,7 @@ export const createApp = ({
     if (!repoLoads.has(card.name))
       repoLoads.set(card.name, (async () => {
         const repo = repoOf(reposRoot, card.name, card.text, ignored)
-        const ready = within(projectsRoot, path.join(path.dirname(card.file), readinessFile)) ? readiness(path.dirname(card.file), readinessFile) : null
+        const ready = card.readinessFile && within(projectsRoot, card.readinessFile) ? readiness(path.dirname(card.readinessFile), path.basename(card.readinessFile)) : null
         const info = { repo, og: ogImage(repo), readiness: ready, freshness: await freshness(repo, ready?.commit), updates: { ...updateFlags(repo), plan: releasePlan(repo), branches: await updateBranches(repo) } }
         repoCache.set(card.name, { ts: Date.now(), ttl: info.freshness.state === 'git-unavailable' ? 60e3 : 5 * 60e3, info })
         return info
@@ -106,7 +107,7 @@ export const createApp = ({
 
   const view = async (card, detail = false) => {
     const h = healthSummary(db, card.name)
-    const { text, file, fields, ...rest } = card
+    const { text, file, fields, readinessFile: _readiness, ...rest } = card
     const info = await repoInfo(card)
     return {
       ...rest,
@@ -402,6 +403,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     utcOffset: c.utcOffset,
     ignore: c.ignore,
     readinessFile: c.readinessFile,
+    cards: c.cards,
     reviewAgents: c.reviewAgents,
     digestAt: c.digest.at,
     digestLang: c.digest.lang,

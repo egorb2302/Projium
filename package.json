@@ -1,6 +1,6 @@
 {
   "name": "projium",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Local dashboard over Markdown project cards: stages, tasks, audits, uptime and build time from Claude Code transcripts",
   "license": "MIT",
   "private": true,
@@ -12,6 +12,7 @@
     "stop": "node --no-warnings scripts/stop.mjs",
     "doctor": "node --no-warnings scripts/doctor.mjs",
     "init": "node --no-warnings scripts/init.mjs",
+    "survey": "node --no-warnings scripts/survey.mjs",
     "test": "node --no-warnings --test --test-timeout=30000 \"test/*.test.mjs\""
   }
 }

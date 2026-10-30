@@ -11,7 +11,7 @@
     "dbFile": { "type": "string", "description": "SQLite file for uptime history and the digest log.", "default": "data/tracker.db" },
     "port": { "type": "integer", "minimum": 0, "maximum": 65535, "default": 3210, "description": "PORT in .env.local or the environment wins." },
     "utcOffset": { "type": "string", "pattern": "^([+-](0\\d|1[0-4]):[0-5]\\d|local)$", "description": "Time zone of card times and of the digest day. Defaults to the computer's offset at start." },
-    "readinessFile": { "type": "string", "pattern": "^[^\\\\/]+\\.[mM][dD]$", "default": "READINESS.md" },
+    "readinessFile": { "type": "string", "pattern": "^[^\\\\/]+\\.[mM][dD]$", "default": "READINESS.md", "description": "File next to each card. {name} is replaced by the card name; with the flat layout a name without {name} turns readiness off." },
     "ignore": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Words; a project whose name or repo path contains one is never probed and its repo and transcripts are never read." },
     "reviewAgents": { "type": "array", "items": { "type": "string" }, "default": ["code-reviewer"], "description": "Claude Code subagent types counted as review time." },
     "digest": {
@@ -22,6 +22,28 @@
         "lang": { "enum": ["en", "ru"], "default": "en" },
         "command": { "type": "array", "items": { "type": "string" }, "minItems": 1, "description": "Command that sends the digest; the text is appended as the last argument. Overrides Telegram." },
         "env": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Names of environment variables the digest command needs; npm run start:bg passes only these and a fixed list of system variables to the server." }
+      }
+    },
+    "cards": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "How project notes are found and read. Defaults: folder layout, Projium field names, ## Tasks.",
+      "properties": {
+        "layout": { "enum": ["folder", "flat"], "default": "folder", "description": "folder: <projectsDir>/<name>/<name>.md. flat: every .md note in projectsDir is a candidate; the file name is the project name." },
+        "recursive": { "type": "boolean", "default": false, "description": "flat only: also read notes in subfolders (hidden folders and node_modules are skipped)." },
+        "filter": { "type": "object", "minProperties": 1, "additionalProperties": { "anyOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" }, "minItems": 1 }] }, "description": "Only notes whose frontmatter matches every key count as projects, e.g. { \"type\": \"client-project\" } or { \"tags\": \"project\" }. Case-insensitive; list fields match when they contain a value; an array means any of. A matching note without a stage counts as development." },
+        "fields": { "type": "object", "propertyNames": { "enum": ["stage", "handed_over_at", "accepted_at", "spec_at", "design_pick_at", "first_push_at", "mainnet_at", "accepted_by", "next_step", "site"] }, "additionalProperties": { "type": "string", "pattern": "^[A-Za-z_][\\w-]*$" }, "description": "Projium field -> the owner's frontmatter key, read and written there, e.g. { \"stage\": \"status\", \"spec_at\": \"started\" }." },
+        "stages": { "type": "object", "additionalProperties": { "enum": ["development", "review", "fixes", "done"] }, "description": "The owner's stage words -> Projium stages, case-insensitive, e.g. { \"in progress\": \"development\" }. When the dashboard sets a stage, the first owner word listed for it is written." },
+        "sections": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "tasks": { "type": "string", "default": "Tasks" },
+            "updates": { "type": "string", "default": "Updates" },
+            "timeline": { "type": "string", "default": "Timeline" }
+          },
+          "description": "Heading text (without ##) of the ## sections Projium reads."
+        }
       }
     },
     "streak": {

@@ -1,8 +1,37 @@
 # Card format
 
-The tracker reads one Markdown file per project: `<projectsDir>/<name>/<name>.md`. The folder name and the file name must match. A folder whose card has no `stage` (and no `project` field) is skipped, so other notes can live next to your cards.
+A card is one Markdown note per project. The card stays the source of truth: the dashboard writes one frontmatter field or one task line per request and refuses the write if that field or line changed since you opened the page.
 
-The card stays the source of truth. The dashboard writes one frontmatter field or one task line per request and refuses the write if that field or line changed since you opened the page.
+## Where cards are found
+
+`cards.layout` in the config:
+
+- `folder` (default): `<projectsDir>/<name>/<name>.md`. The folder name and the file name must match.
+- `flat`: every `.md` note directly in `projectsDir` is a candidate, and the file name (without `.md`) is the project name. With `cards.recursive: true`, notes in subfolders count too; hidden folders, `node_modules` and links are skipped, and when two notes share a name, both are named by their path (`Clients/Acme/Notes`).
+
+`cards.filter` keeps only notes whose frontmatter matches, for example `{ "type": "client-project" }` or `{ "tags": "project" }`. Matching is case-insensitive, a list field (`tags: [project, client]` or a `- item` list) matches when it contains the value, and an array in the filter means any of its values. With a filter, a matching note without a stage counts as `development`. Without a filter, a note needs a `stage` (or a `project` field) to be shown.
+
+## Mapping the owner's fields
+
+Projium uses the field names below. When the owner's notes already have their own, map them instead of renaming anything:
+
+```json
+"cards": {
+  "layout": "flat",
+  "filter": { "type": "client-project" },
+  "fields": { "stage": "status", "spec_at": "started", "first_push_at": "first_deploy", "next_step": "next" },
+  "stages": { "in progress": "development", "waiting for client review": "review", "shipped": "done" },
+  "sections": { "tasks": "Todo" }
+}
+```
+
+- `fields`: Projium field → the owner's frontmatter key. The value is read from that key and the dashboard writes it back there; no Projium key is added to the note. The dashboard labels such fields with the owner key.
+- `stages`: the owner's words → Projium stages, case-insensitive. Writing a stage from the dashboard keeps the owner's current word when it already means that stage, otherwise writes the first word listed for it, or the Projium stage when none is listed. Words that are not mapped are shown as they are, and the doctor names them.
+- Times: `2026-10-20 09:30`, `2026-10-20T09:30`, seconds, and date-only `2026-10-20` (read as `00:00`) are all read. A write keeps the format the field already had: a space stays a space, a date-only field stays date-only when the new time is `00:00`.
+- A plain unquoted value stays unquoted when the dashboard rewrites it, as long as it is plain text; anything else is written quoted.
+- `sections`: the heading text (without `##`) of the tasks, updates and timeline sections.
+
+Run `npm run --silent survey` to see which keys, values, date formats and checkbox headings the notes actually use before writing the mapping.
 
 ## Frontmatter
 
@@ -26,7 +55,7 @@ Durations are always computed and never stored.
 
 All optional.
 
-`## Tasks`: one task per line.
+`## Tasks` (or the heading set in `cards.sections.tasks`): one task per line.
 
 ```
 - [ ] Fix slippage rounding · due 2026-11-02 · p1 ^t-a1b2
@@ -40,7 +69,7 @@ All optional.
 
 ## Next to the card
 
-`READINESS.md` (the name is set by `readinessFile`) in the card's folder, if present:
+`READINESS.md` (the name is set by `readinessFile`) in the card's folder, if present. `{name}` in `readinessFile` is replaced by the card name, so `"{name} readiness.md"` works for the flat layout, where cards share a folder; there a name without `{name}` turns readiness off.
 
 ```
 ---
