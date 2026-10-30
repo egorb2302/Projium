@@ -10,7 +10,7 @@ It reads your cards and the project repos and shows, per project:
 - time from spec to design pick, first push and mainnet, with medians across projects;
 - whether the last readiness audit still matches the code (commits and uncommitted files after the audited commit);
 - uptime of the live site and which feature flags are on in prod;
-- where the build time went, from Claude Code transcripts: Claude working, review, waiting for you, pauses (timestamps only, no message text).
+- where the build time went, from Claude Code transcripts: Claude working, review, waiting for you, pauses (only timestamps and event kinds are kept; message text is never stored or shown).
 
 You can edit card fields and tasks from the dashboard. It writes one field or one task line at a time and never overwrites something you changed in Obsidian meanwhile: it shows what is there now and asks.
 
@@ -25,11 +25,11 @@ Paste this to Claude Code, Codex or any agent that can run commands on your comp
 ```
 Install Projium (https://github.com/egorb2302/Projium) on this computer and connect it
 to my project notes. Follow AGENTS.md in the repo step by step and finish when
-npm run doctor reports ok. Ask me before you edit or create any notes, add a token,
-or set up autostart.
+npm run --silent doctor reports ok. Ask me before you edit or create any notes,
+add a token or a site to check, or set up autostart.
 ```
 
-The agent reads [AGENTS.md](AGENTS.md): where to look for your notes, how to map them to cards, `npm run init` to write the config and `npm run doctor`, a JSON check that says exactly what is missing. Afterwards your agents can read and update projects through the [local API](docs/api.md).
+The agent reads [AGENTS.md](AGENTS.md): how to find your projects and map your notes to cards, `init` to write the config, `doctor` for a JSON check that says exactly what is missing, and `start:bg` / `stop` to run the server in the background. Afterwards your agents can read and update projects through the [local API](docs/api.md). In a test, an agent with no other context set it up from a vault of plain project notes in a few minutes, without touching the existing notes.
 
 ## Run it
 
@@ -43,16 +43,16 @@ npm start
 
 Open http://127.0.0.1:3210. With no config file you see four demo projects from `demo/`.
 
-On Windows, `start-tracker.cmd` starts the server if it is not running and opens the browser (it assumes the default port 3210).
+`npm run start:bg` starts it in the background and `npm run stop` stops it. On Windows, `start-tracker.cmd` starts the server if it is not running and opens the browser (it assumes the default port 3210).
 
 ## Point it at your projects
 
 ```
-npm run init -- --projects "C:/path/to/Projects" --repos "C:/path/to/code" --offset=+03:00
-npm run doctor
+npm run --silent init -- --projects "C:/path/to/Projects" --repos "C:/path/to/code" --offset=+03:00
+npm run --silent doctor
 ```
 
-`init` writes `tracker.config.json` (git-ignored); `doctor` prints a JSON report of what is shown, what is skipped and why, and exits 0 once the setup is complete. You can also copy `tracker.config.example.json` and edit it by hand ([schema](tracker.config.schema.json)). Relative paths resolve from the config file's folder; `~` is your home folder.
+`init` writes `tracker.config.json` (git-ignored); `doctor` prints a JSON report of what is shown, what is skipped and why, and exits 0 once the setup is complete. Use the `--offset=` form: `--offset=-05:00` works, `--offset -05:00` does not. You can also copy `tracker.config.example.json` and edit it by hand ([schema](tracker.config.schema.json)). Relative paths resolve from the config file's folder; `~` is your home folder.
 
 | Key | Default | Meaning |
 |---|---|---|

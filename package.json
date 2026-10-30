@@ -8,6 +8,8 @@
   "engines": { "node": ">=24" },
   "scripts": {
     "start": "node --no-warnings server.mjs",
+    "start:bg": "node --no-warnings scripts/start-bg.mjs",
+    "stop": "node --no-warnings scripts/stop.mjs",
     "doctor": "node --no-warnings scripts/doctor.mjs",
     "init": "node --no-warnings scripts/init.mjs",
     "test": "node --no-warnings --test --test-timeout=30000 \"test/*.test.mjs\""

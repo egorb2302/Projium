@@ -19,16 +19,20 @@ A card entry:
 | Key | Content |
 |---|---|
 | `name` | Folder name of the card. |
+| `hash` | Short hash of the card file as read. |
+| `preview` | URL path of the cover image (`/vault/...` or `/og/...`), or `null`. |
 | `fields` | `status`, `stage`, `next_step`, `site`, `accepted_by`, `handed_over_at`, `accepted_at`, `spec_at`, `design_pick_at`, `first_push_at`, `mainnet_at` when present. Other frontmatter keys are never returned. |
 | `locked` | Field names the dashboard will not write (not a plain one-line value in the card). |
 | `tasks` | `{ id, done, text, due, p }`; `readonly: true` for tasks without a `^t-` id. |
 | `updates`, `timeline` | Lines of `## Updates` and rows of the `## Timeline` table. |
 | `repoInfo` | `repo` (folder name), `readiness` (`proven`, `total`, `audit`, `commit`), `freshness` (`state`: `current`, `changed-after`, `no-audit-commit`, `audit-commit-unknown`, `git-unavailable`, `no-repo`, plus commit counts), `updates` (release plan and update branches). |
 | `health` | `last` check `{ ts, code, ms, error }`, `uptime24` (percent), `checks24`. |
-| `prodUpdates` | Per update: `state` (`on`, `off`, `partly`, `merged`, `branch`, `unknown`) and its flags. |
-| `timeSplit` | Per phase (`toFirstPush`, `toMainnet`, `total`): milliseconds of `work`, `review`, `waiting`, `pause`, `missing`. |
+| `prodUpdates` | `{ entries, checkedAt, configError }`. Each entry: `n` (update number, `null` for a site flag outside the release plan), `flags` (`{ name, prod }`), `branch` (`{ name, sha, inMain }` or `null`), `state` (`on`, `off`, `partly`, `merged`, `branch`, `unknown`). |
+| `timeSplit` | `null` when the card has no repo. Otherwise `{ sessions, agents, at, phases }`; `phases` has `toFirstPush`, `toMainnet` and `total` only when both milestone times of that phase are set. Each phase: milliseconds of `work`, `review`, `waiting`, `pause`, `missing`, plus `total` and `hasData`. |
 | `zone` | The configured UTC offset, like `+03:00`. |
 | `ignored` | `true` for projects matched by the `ignore` list. |
+
+`GET /api/meta` returns `{ app: "projium", version, instance }`; `instance` is a hash of the projects folder, so a client can tell this Projium from another one on the same port.
 
 `GET /api/digest` returns `{ text, at, enabled, lastAuto, lastManual }`: the digest as it would be sent now. Nothing is sent.
 
@@ -64,6 +68,8 @@ Every write changes one thing and checks that it did not change since you read i
 **Recheck now:** `POST /api/projects/<name>/refresh` with `{}` re-reads git, the live site and transcripts for that card.
 
 **Send the digest now:** `POST /api/digest/send` with `{}`. `409` when no channel is configured or a send is in progress.
+
+**Stop the server:** `POST /api/shutdown` with `{}`, which is what `npm run stop` uses. Returns `{ "stopping": true }`.
 
 ## Example
 

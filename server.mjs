@@ -10,13 +10,15 @@ import { createTimeCache, projectSplit } from './lib/timesplit.mjs'
 import { openDb, checkSite, recordHealth, healthSummary, pruneHealth } from './lib/health.mjs'
 import { buildDigest, digestSender, isDue, parseAt, localDay } from './lib/digest.mjs'
 import { createStreak } from './lib/streak.mjs'
-import { loadConfig, ignoreTest, formatOffset } from './lib/config.mjs'
+import { loadConfig, ignoreTest, formatOffset, instanceId } from './lib/config.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.woff2': 'font/woff2' }
 
 const SHOWN_FIELDS = ['status', ...EDITABLE]
+
+const VERSION = JSON.parse(fs.readFileSync(path.join(here, 'package.json'), 'utf8')).version
 
 export { publicError }
 
@@ -56,6 +58,7 @@ export const createApp = ({
   ignore = [],
   readinessFile = 'READINESS.md',
   reviewAgents = ['code-reviewer'],
+  onShutdown = null,
 } = {}) => {
   const digestMinutes = parseAt(digestAt)
   if (digestMinutes == null) throw new Error(`digest time must be HH:MM, got ${digestAt}`)
@@ -286,6 +289,14 @@ export const createApp = ({
     }
 
     try {
+      if (parts[0] === 'api' && parts[1] === 'meta' && req.method === 'GET' && parts.length === 2)
+        return send(res, 200, { app: 'projium', version: VERSION, instance: instanceId(projectsRoot) })
+      if (parts[0] === 'api' && parts[1] === 'shutdown' && req.method === 'POST' && parts.length === 2) {
+        await readBody(req)
+        if (!onShutdown) return send(res, 404, { error: 'not found' })
+        send(res, 200, { stopping: true })
+        return setImmediate(onShutdown)
+      }
       if (parts[0] === 'api' && parts[1] === 'digest' && req.method === 'GET' && parts.length === 2)
         return send(res, 200, { text: await digestText(clock()), at: digestAt, enabled: Boolean(sendDigest), lastAuto: lastDigest('auto'), lastManual: lastDigest('manual') })
       if (parts[0] === 'api' && parts[1] === 'digest' && parts[2] === 'send' && req.method === 'POST' && parts.length === 3) {
@@ -343,7 +354,9 @@ export const createApp = ({
   let digestTimer
   let timeTimer
   const start = () =>
-    new Promise(resolve => {
+    new Promise((resolve, reject) => {
+      server.once('error', e =>
+        reject(e?.code === 'EADDRINUSE' ? Object.assign(new Error(`port ${port} is already in use; set port in tracker.config.json (or PORT in .env.local), or run npm run stop if it is another Projium`), { code: 'EADDRINUSE' }) : e))
       server.listen(port, '127.0.0.1', () => {
         bound = server.address().port
         if (checkHealth) {
@@ -365,6 +378,7 @@ export const createApp = ({
       clearInterval(timer)
       clearInterval(digestTimer)
       clearInterval(timeTimer)
+      server.closeAllConnections()
       server.close(() => {
         db.close()
         resolve()
@@ -391,8 +405,12 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     digestLang: c.digest.lang,
     sendDigest: digestSender(c.digest),
     streak: c.streak,
+    onShutdown: () => app.stop().finally(() => process.exit(0)),
   })
   if (c.unknownKeys.length) console.error(`config: unknown keys ignored: ${c.unknownKeys.join(', ')} (run npm run doctor)`)
-  const port = await app.start()
+  const port = await app.start().catch(e => {
+    console.error(`projium: ${e?.message ?? e}`)
+    process.exit(1)
+  })
   console.log(`projium: http://127.0.0.1:${port} (${c.file ? `config ${c.file}` : 'no config file, showing the demo projects'})`)
 }

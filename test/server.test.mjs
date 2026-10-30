@@ -176,6 +176,41 @@ test('links that lead out of the projects folder are not followed', async t => {
   assert.equal((await get('/api/projects/leak')).status, 400)
 })
 
+test('meta names the app and instance; shutdown works only when the server is given a handler; a busy port fails clearly', async t => {
+  const { call, port } = await setup(t)
+  const meta = await call('GET', '/api/meta')
+  assert.equal(meta.json.app, 'projium')
+  assert.match(meta.json.instance, /^[0-9a-f]{12}$/)
+  assert.ok(!meta.text.includes(os.tmpdir().replace(/\\/g, '\\\\')), 'no local path in meta')
+  assert.equal((await call('POST', '/api/shutdown', {})).status, 404)
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-busy-'))
+  fs.mkdirSync(path.join(dir, 'p'))
+  let stopped = 0
+  const b = createApp({ projectsRoot: path.join(dir, 'p'), reposRoot: dir, dbFile: path.join(dir, 'db', 't.db'), port, checkHealth: false })
+  await assert.rejects(b.start(), e => e.code === 'EADDRINUSE' && /port \d+ is already in use/.test(e.message))
+  b.db.close()
+  const c = createApp({ projectsRoot: path.join(dir, 'p'), reposRoot: dir, dbFile: path.join(dir, 'db', 'c.db'), port: 0, checkHealth: false, onShutdown: () => stopped++ })
+  const cport = await c.start()
+  t.after(async () => {
+    await c.stop()
+    fs.rmSync(dir, { recursive: true, force: true })
+  })
+  const shut = await new Promise((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port: cport, method: 'POST', path: '/api/shutdown', headers: { host: `127.0.0.1:${cport}`, 'content-type': 'application/json', origin: 'https://evil.example' } }, res => (res.resume(), resolve(res.statusCode)))
+    req.on('error', reject)
+    req.end('{}')
+  })
+  assert.equal(shut, 403, 'a web page cannot stop it')
+  const ok = await new Promise((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port: cport, method: 'POST', path: '/api/shutdown', headers: { host: `127.0.0.1:${cport}`, 'content-type': 'application/json' } }, res => (res.resume(), resolve(res.statusCode)))
+    req.on('error', reject)
+    req.end('{}')
+  })
+  assert.equal(ok, 200)
+  await new Promise(r => setTimeout(r, 50))
+  assert.equal(stopped, 1)
+})
+
 test('a manual digest send without a channel is refused', async t => {
   const { call } = await setup(t)
   const r = await call('POST', '/api/digest/send', {})

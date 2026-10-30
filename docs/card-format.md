@@ -15,7 +15,7 @@ Keep it flat: one `key: value` per line. Multi-line values, block scalars and du
 | `next_step` | one line | Card and digest. |
 | `site` | `"https://domain"` | Uptime check every 10 minutes while the stage is not `done`, plus the prod flag read (below). Public https domains only. |
 | `preview` | `"preview.jpg"`, `"alpha/shot.png"` or an Obsidian link `"[[Projects/alpha/preview.png]]"` | Cover image. A bare file name is looked up in the card's folder. png, jpg or webp, inside `projectsDir` only. Without it, the repo's `public/og.*` image is used. |
-| `repo` | `"alpha"` or an absolute path | The git repo of the project, relative to `reposDir`. Without it, the tracker uses a `Repo: \`<absolute path>\`` line in the card body, then a folder in `reposDir` named like the card. |
+| `repo` | `"alpha"`, `"~/code/alpha"`, an absolute path, or `none` | The git repo of the project, relative to `reposDir`. Without it, the tracker uses a `Repo: \`<absolute path>\`` line in the card body, then a folder in `reposDir` named like the card. `none` marks a project without code: no repo lookup, no warning. |
 | `spec_at`, `design_pick_at`, `first_push_at`, `mainnet_at` | `YYYY-MM-DDTHH:MM` | Milestone durations and the time split. Read in the `utcOffset` time zone. |
 | `handed_over_at`, `accepted_at` | `YYYY-MM-DD` | Shown on the card. |
 | `accepted_by` | text | Shown on the card. |
