@@ -29,7 +29,7 @@ npm run --silent doctor reports ok. Ask me before you edit or create any notes,
 add a token or a site to check, or set up autostart.
 ```
 
-The agent reads [AGENTS.md](AGENTS.md): how to find your projects and map your notes to cards, `init` to write the config, `doctor` for a JSON check that says exactly what is missing, and `start:bg` / `stop` to run the server in the background. Afterwards your agents can read and update projects through the [local API](docs/api.md). In a test, an agent with no other context set it up from a vault of plain project notes in a few minutes, without touching the existing notes.
+The agent reads [AGENTS.md](AGENTS.md): how to find your projects and map your notes to cards, `init` to write the config, `doctor` for a JSON check that says exactly what is missing, and `start:bg` / `stop` to run the server in the background. Afterwards your agents can read and update projects through the [local API](docs/api.md). In two tests, agents with no other context set it up from vaults laid out in different ways in a few minutes each; the text of the existing notes stayed unchanged (one owner allowed frontmatter fields to be added, the other did not).
 
 ## Run it
 

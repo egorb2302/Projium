@@ -27,7 +27,7 @@ cd Projium
 npm test
 ```
 
-Check: the summary at the end says `ℹ fail 0`. Some tests print failure-looking log lines (for example `streak failed`) on purpose; only the summary counts. No `npm install` is needed.
+Check: the summary at the end says `ℹ fail 0`. Some tests print failure-looking log lines (for example `streak failed`) on purpose; only the summary counts. The tests create and delete folders under the system temp folder and run git there; on Windows keep `TEMP` at its usual short path, or git may fail with "Filename too long". No `npm install` is needed.
 
 If a `tracker.config.json` already exists in the folder, Projium is set up already: run `npm run --silent doctor` (step 5) and fix what it reports instead of starting over.
 
@@ -41,14 +41,17 @@ Projium reads `<projectsDir>/<name>/<name>.md`: a folder per project and a card 
 
 | What you see | What to do |
 |---|---|
-| One folder per project, with a note named like the folder | Use that folder as `projectsDir`. Add `stage:` to each note's frontmatter, with the owner's yes. |
+| One folder per project, with a note named like the folder | Use that folder as `projectsDir`. Add `stage:` and the other fields to each note's frontmatter, with the owner's yes. |
+| One folder per project, but the main note is named differently (`Kestrel/kestrel-notes.md`) | Same `projectsDir`. Either rename the note to `Kestrel.md` (a rename: owner's yes), or create a new card `Kestrel/Kestrel.md` next to it that links back to the note (a new file: owner's yes). Do not do both. |
 | One note per project in one folder, or projects spread across notes, a database or a list | Create a new folder (for example `<vault>/Projium/`) with one card per project, owner's yes first. Cards are new files; the source notes stay as they are. |
+
+Folders inside `projectsDir` that are not projects (an archive, attachments) and loose files (a README) are skipped; the doctor lists them, which is fine.
 
 **Map the fields.** Fill only what you can source; leave a field out rather than guess.
 
 | In the owner's note | In the card |
 |---|---|
-| Status words | `stage`: active work → `development`; waiting for review, a client or feedback → `review`; fixing after review → `fixes`; shipped, closed, paused for good → `done`. Copy the owner's own wording into `status`. |
+| Status words | `stage`: active work → `development`; waiting for review, a client or feedback → `review`; fixing after review → `fixes`; finished and no longer worked on, closed, paused for good → `done`. A live product that still gets work is `development` or `fixes`, not `done`: `done` also stops its uptime checks. Copy the owner's own wording into `status`. |
 | What happens next | `next_step` (one line). Leave it out if the note does not say. |
 | When the work or brief started | `spec_at` |
 | Design approved | `design_pick_at` |
@@ -56,10 +59,10 @@ Projium reads `<projectsDir>/<name>/<name>.md`: a folder per project and a card 
 | Launch on the real network or production release | `mainnet_at` |
 | Handed over, accepted, by whom | `handed_over_at`, `accepted_at`, `accepted_by` |
 | A production URL | `site` (ask first, see ground rules) |
-| A repo path or name, in any form (`~/code/x`, "Repo: x", a link) | `repo`, relative to `reposDir` or absolute; `~` works. `repo: none` for a project without code. |
+| A repo path or name, in any form (`~/code/x`, "Repo: x", a link) | `repo`, relative to `reposDir` or absolute; `repo: none` for a project without code. `~` means the home folder of the user who runs Projium, which may not be where the note's author meant; prefer a path relative to `reposDir`. For a GitHub or other URL, find the local clone and confirm it with `git -C <clone> remote get-url origin` when it has a remote. |
 | Deadline, client, budget, anything else | The card body, as text. A deadline can also be a task's `due`. |
 
-Times are `YYYY-MM-DDTHH:MM` in the owner's time zone (step 4); dates are `YYYY-MM-DD`. A date without a year: use the year the note was written in and say so in the card's `## Timeline` table (Accuracy column) and in your report. Record where each time came from in that table.
+Times are `YYYY-MM-DDTHH:MM` in the owner's time zone (step 4); dates are `YYYY-MM-DD`. A date without a year: use the year the note was written in. A date without a time: leave the time field out, or, if the owner accepts day accuracy, write `T00:00`. Record where each time came from and how exact it is in the card's `## Timeline` table when you may edit the body, and always in your report.
 
 **Tasks.** One per line under `## Tasks`:
 
@@ -68,6 +71,8 @@ Times are `YYYY-MM-DDTHH:MM` in the owner's time zone (step 4); dates are `YYYY-
 ```
 
 The separator is ` · ` (space, U+00B7 middle dot, space). `due` and the priority (`p1`, `p2`, `p3`) are optional. `^t-` plus four lowercase letters or digits is the task id, unique within the card. Write the file with a file-writing tool, not through a shell that may mangle non-ASCII characters. Tasks without a valid id still show, but read-only; the doctor counts them.
+
+Only checkboxes under the `## Tasks` heading are tasks. If an existing note keeps its to-dos under another heading (`## Next`, `## Todo`) and you may not edit its body, leave them, put the most pressing one into `next_step`, and tell the owner that renaming the heading to `## Tasks` would show them all. The doctor warns about checkboxes outside `## Tasks`.
 
 **Link back.** Put the source note's path in the card body with a full vault path, because the card and the note often share a name: `Source note: [[Work/Clients/Acme Shop|Acme Shop]]`. Template: [docs/card-template.md](docs/card-template.md).
 
@@ -79,7 +84,7 @@ Find the folder where the owner clones project repos: that is `reposDir`. A card
 
 ## 4. Write the config
 
-Pick a port: 3210 by default. If it is taken (`npm run --silent doctor` later shows `server.portBusy`, or the server says the port is in use), pass another one.
+Pick a port: 3210 by default. Before the config exists, `npm run --silent doctor` already probes 3210 and shows `server.portBusy: true` when something else answers there; then pass another port with `--port`.
 
 ```
 npm run --silent init -- --projects "<absolute projectsDir>" --repos "<absolute reposDir>" --offset=+03:00
