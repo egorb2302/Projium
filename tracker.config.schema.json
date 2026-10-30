@@ -20,7 +20,8 @@
       "properties": {
         "at": { "type": "string", "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$", "default": "10:00" },
         "lang": { "enum": ["en", "ru"], "default": "en" },
-        "command": { "type": "array", "items": { "type": "string" }, "minItems": 1, "description": "Command that sends the digest; the text is appended as the last argument. Overrides Telegram." }
+        "command": { "type": "array", "items": { "type": "string" }, "minItems": 1, "description": "Command that sends the digest; the text is appended as the last argument. Overrides Telegram." },
+        "env": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Names of environment variables the digest command needs; npm run start:bg passes only these and a fixed list of system variables to the server." }
       }
     },
     "streak": {

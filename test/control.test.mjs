@@ -41,6 +41,8 @@ test('an older Projium without /api/meta is recognized and neither started over 
 test('the background server gets only the environment it needs', () => {
   const env = serverEnv({ PATH: '/bin', Path: 'x', USERPROFILE: 'u', TELEGRAM_BOT_TOKEN: 't', OPENAI_API_KEY: 'sk-x', npm_config_cache: 'c', AWS_SECRET_ACCESS_KEY: 's' }, { TRACKER_CONFIG: 'f' })
   assert.deepEqual(Object.keys(env).sort(), ['PATH', 'Path', 'TELEGRAM_BOT_TOKEN', 'TRACKER_CONFIG', 'USERPROFILE'])
+  const withDigest = serverEnv({ PATH: '/bin', SLACK_BOT_TOKEN: 'xoxb', OPENAI_API_KEY: 'sk-x' }, {}, ['slack_bot_token'])
+  assert.deepEqual(Object.keys(withDigest).sort(), ['PATH', 'SLACK_BOT_TOKEN'], 'variables named in digest.env pass through')
 })
 
 const repoRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)))

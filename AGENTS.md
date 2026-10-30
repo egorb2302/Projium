@@ -133,7 +133,7 @@ Autostart, only with the owner's yes: on Windows, a shortcut in `shell:startup` 
 
 ## 7. Optional extras
 
-- **Daily digest:** Telegram (`TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env.local`) or any command (`digest.command` in the config; the text is appended as the last argument). Preview at `<server.url>/api/digest` before turning it on.
+- **Daily digest:** Telegram (`TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env.local`) or any command (`digest.command` in the config; the text is appended as the last argument; list the environment variables it needs in `digest.env`, because `start:bg` passes the server a filtered environment). Preview at `<server.url>/api/digest` before turning it on.
 - **Readiness:** a `READINESS.md` next to a card with `audit_commit:` and `Ready: X of Y`. Projium shows whether the code changed after that commit.
 - **Time split:** automatic for repos built with Claude Code when `transcriptsDir` is right.
 

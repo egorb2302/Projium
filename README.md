@@ -67,6 +67,7 @@ npm run --silent doctor
 | `digest.at` | `10:00` | Local time of the daily digest. |
 | `digest.lang` | `en` | `en` or `ru`. |
 | `digest.command` | none | Command that sends the digest; the text is passed as the last argument. Overrides Telegram. |
+| `digest.env` | `[]` | Names of environment variables that command needs (for example `["SLACK_BOT_TOKEN"]`). `npm run start:bg` passes the server only system variables, Projium's own and these. |
 | `streak.repo` | none | A git clone the server commits a dated line to once a day and pushes. Leave it out unless you want that. |
 
 The card format, the readiness file and the optional repo conventions are in [docs/card-format.md](docs/card-format.md); a card to copy is in [docs/card-template.md](docs/card-template.md).
