@@ -78,7 +78,7 @@ export const createApp = ({
     if (!repoLoads.has(card.name))
       repoLoads.set(card.name, (async () => {
         const repo = repoOf(reposRoot, card.name, card.text, ignored)
-        const ready = readiness(path.dirname(card.file), readinessFile)
+        const ready = within(projectsRoot, path.join(path.dirname(card.file), readinessFile)) ? readiness(path.dirname(card.file), readinessFile) : null
         const info = { repo, og: ogImage(repo), readiness: ready, freshness: await freshness(repo, ready?.commit), updates: { ...updateFlags(repo), plan: releasePlan(repo), branches: await updateBranches(repo) } }
         repoCache.set(card.name, { ts: Date.now(), ttl: info.freshness.state === 'git-unavailable' ? 60e3 : 5 * 60e3, info })
         return info
@@ -310,8 +310,8 @@ export const createApp = ({
       }
       if (parts[0] === 'vault' && req.method === 'GET') {
         const rel = parts.slice(1).join('/')
-        const file = /\.(png|jpe?g|webp)$/i.test(rel) && within(projectsRoot, path.resolve(projectsRoot, rel))
-        if (!file) return send(res, 404, { error: 'not found' })
+        const file = within(projectsRoot, path.resolve(projectsRoot, rel))
+        if (!file || !/\.(png|jpe?g|webp)$/i.test(file)) return send(res, 404, { error: 'not found' })
         return sendFile(res, file, TYPES[path.extname(file).toLowerCase()], 'max-age=300')
       }
       if (parts[0] === 'og' && parts.length === 2 && req.method === 'GET') {

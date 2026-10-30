@@ -72,7 +72,7 @@ test('site checks never reach a private or loopback address, by literal or by DN
   assert.equal((await checkSite(`http://localhost:${port}/`)).error, 'EPRIVATE')
   assert.equal(hits, 0)
   assert.equal((await checkSite(`${base}/`, 5000, dns.lookup)).code, 200)
-  for (const a of ['10.1.2.3', '172.20.0.1', '192.168.1.1', '169.254.169.254', '100.64.0.1', '::1', 'fd00::1', 'fe80::1', '::ffff:127.0.0.1']) assert.equal(isPrivate(a), true, a)
+  for (const a of ['10.1.2.3', '172.20.0.1', '192.168.1.1', '169.254.169.254', '100.64.0.1', '::1', '::7f00:1', 'fec0::1', 'fd00::1', 'fe80::1', '::ffff:127.0.0.1']) assert.equal(isPrivate(a), true, a)
   for (const a of ['1.1.1.1', '93.184.216.34', '2606:4700::1111']) assert.equal(isPrivate(a), false, a)
 })
 
@@ -201,4 +201,31 @@ test('a prod state is shown only while the site is watched, unchanged and read w
 
   fs.writeFileSync(file, ['---', 'stage: done', 'site: "https://other.example.com"', '---', ''].join('\n'))
   assert.deepEqual((await get()).entries, [], 'a done project shows no prod state')
+})
+
+test('an ignored project site is never probed, on the tick or on Recheck', async t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-ign-'))
+  const projects = path.join(dir, 'projects')
+  fs.mkdirSync(path.join(projects, 'secret-app'), { recursive: true })
+  fs.mkdirSync(path.join(dir, 'repos'))
+  fs.writeFileSync(path.join(projects, 'secret-app', 'secret-app.md'), ['---', 'stage: fixes', 'site: "https://secret.example.com"', '---', ''].join('\n'))
+  let probes = 0
+  const app = createApp({
+    projectsRoot: projects, reposRoot: path.join(dir, 'repos'), dbFile: path.join(dir, 'db', 't.db'), port: 0, checkHealth: false, ignore: ['secret'],
+    probeSite: async () => (probes++, { code: 200, ms: 1, error: null }),
+    readConfig: async () => (probes++, cfg({})),
+  })
+  const port = await app.start()
+  t.after(async () => {
+    await app.stop()
+    fs.rmSync(dir, { recursive: true, force: true })
+  })
+  await app.healthTick()
+  const status = await new Promise((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port, method: 'POST', path: '/api/projects/secret-app/refresh', headers: { host: `127.0.0.1:${port}`, 'content-type': 'application/json' } }, res => (res.resume(), resolve(res.statusCode)))
+    req.on('error', reject)
+    req.end('{}')
+  })
+  assert.equal(status, 200)
+  assert.equal(probes, 0)
 })

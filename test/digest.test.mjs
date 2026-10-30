@@ -259,6 +259,7 @@ test('a failing auto digest stops after three attempts a day, and the count surv
 test('only one digest is sent at a time, and an unreadable project does not stop it', async t => {
   const { projects, make } = tempProjects(t)
   fs.mkdirSync(path.join(projects, 'demo', 'READINESS.md'))
+  fs.mkdirSync(path.join(projects, 'broken', 'broken.md'), { recursive: true })
   let release
   const sent = []
   const app = make({
@@ -275,7 +276,8 @@ test('only one digest is sent at a time, and an unreadable project does not stop
     release()
     await Promise.all([first, second])
     assert.equal(sent.length, 1)
-    assert.match(sent[0], /Карточки не читаются:\n- demo: /)
+    assert.match(sent[0], /Карточки не читаются:\n- broken: EISDIR\n/)
+    assert.match(sent[0], /demo: fixes\n/, 'a readiness path that is not a file is skipped')
   } finally {
     release?.()
     await app.stop()
