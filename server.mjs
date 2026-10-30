@@ -294,8 +294,8 @@ export const createApp = ({
       if (parts[0] === 'api' && parts[1] === 'shutdown' && req.method === 'POST' && parts.length === 2) {
         await readBody(req)
         if (!onShutdown) return send(res, 404, { error: 'not found' })
-        send(res, 200, { stopping: true })
-        return setImmediate(onShutdown)
+        res.once('finish', () => setImmediate(onShutdown))
+        return send(res, 200, { stopping: true })
       }
       if (parts[0] === 'api' && parts[1] === 'digest' && req.method === 'GET' && parts.length === 2)
         return send(res, 200, { text: await digestText(clock()), at: digestAt, enabled: Boolean(sendDigest), lastAuto: lastDigest('auto'), lastManual: lastDigest('manual') })
@@ -355,9 +355,11 @@ export const createApp = ({
   let timeTimer
   const start = () =>
     new Promise((resolve, reject) => {
-      server.once('error', e =>
-        reject(e?.code === 'EADDRINUSE' ? Object.assign(new Error(`port ${port} is already in use; set port in tracker.config.json (or PORT in .env.local), or run npm run stop if it is another Projium`), { code: 'EADDRINUSE' }) : e))
+      const failed = e =>
+        reject(e?.code === 'EADDRINUSE' ? Object.assign(new Error(`port ${port} is already in use; set port in tracker.config.json (or PORT in .env.local), or run npm run --silent stop if it is another Projium`), { code: 'EADDRINUSE' }) : e)
+      server.once('error', failed)
       server.listen(port, '127.0.0.1', () => {
+        server.off('error', failed)
         bound = server.address().port
         if (checkHealth) {
           warmRepos().catch(() => {})
@@ -407,7 +409,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     streak: c.streak,
     onShutdown: () => app.stop().finally(() => process.exit(0)),
   })
-  if (c.unknownKeys.length) console.error(`config: unknown keys ignored: ${c.unknownKeys.join(', ')} (run npm run doctor)`)
+  if (c.unknownKeys.length) console.error(`config: unknown keys ignored: ${c.unknownKeys.join(', ')} (run npm run --silent doctor)`)
   const port = await app.start().catch(e => {
     console.error(`projium: ${e?.message ?? e}`)
     process.exit(1)

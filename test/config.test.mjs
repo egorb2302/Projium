@@ -80,6 +80,7 @@ test('a bad config is refused at start with a readable reason', t => {
   bad({ reviewAgents: [1] }, /reviewAgents must be an array/)
   bad({ port: 'abc' }, /port must be a number/)
   bad({ readinessFile: '../x.md' }, /readinessFile/)
+  bad({ digest: { at: '25:00' } }, /digest\.at must be HH:MM/)
   bad('null', /must hold a JSON object/)
   bad('[1]', /must hold a JSON object/)
   bad('{bad', /tracker\.config\.json is not valid JSON/)

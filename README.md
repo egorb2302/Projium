@@ -25,11 +25,11 @@ Paste this to Claude Code, Codex or any agent that can run commands on your comp
 ```
 Install Projium (https://github.com/egorb2302/Projium) on this computer and connect it
 to my project notes. Follow AGENTS.md in the repo step by step and finish when
-npm run --silent doctor reports ok. Ask me before you edit or create any notes,
-add a token or a site to check, or set up autostart.
+npm run --silent doctor reports ok and the server is running. Ask me before you
+edit or create any notes, add a token or a site to check, or set up autostart.
 ```
 
-The agent reads [AGENTS.md](AGENTS.md): how to find your projects and map your notes to cards, `init` to write the config, `doctor` for a JSON check that says exactly what is missing, and `start:bg` / `stop` to run the server in the background. Afterwards your agents can read and update projects through the [local API](docs/api.md). In two tests, agents with no other context set it up from vaults laid out in different ways in a few minutes each; the text of the existing notes stayed unchanged (one owner allowed frontmatter fields to be added, the other did not).
+The agent reads [AGENTS.md](AGENTS.md): how to find your projects and map your notes to cards, `init` to write the config, `doctor` for a JSON check that says exactly what is missing, and `start:bg` / `stop` to run the server in the background. Afterwards your agents can read and update projects through the [local API](docs/api.md). We tested it with two fresh agents that had only this repo and a sample vault each (one note per project in a flat folder; one folder per project with mismatched names and repo links). Both finished in a few minutes. In the first vault no existing note changed; in the second, where the owner allowed it, only frontmatter lines were added.
 
 ## Run it
 

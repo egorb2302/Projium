@@ -151,8 +151,11 @@ test('init writes a config that loads, keeps a backup on --force and rejects bad
   const custom = { ...JSON.parse(fs.readFileSync(file, 'utf8')), streak: { repo: 'x' } }
   fs.writeFileSync(file, JSON.stringify(custom))
   const forced = writeConfig(repoRoot, ['--projects', projects, '--repos', dir, '--config', file, '--force'], dir)
-  assert.equal(forced.backup, `${file}.bak`)
-  assert.deepEqual(JSON.parse(fs.readFileSync(`${file}.bak`, 'utf8')).streak, { repo: 'x' })
+  assert.match(forced.backup, /tracker\.config\.json\.bak-\d{8}T\d{6}/)
+  assert.deepEqual(JSON.parse(fs.readFileSync(forced.backup, 'utf8')).streak, { repo: 'x' })
+  const again = writeConfig(repoRoot, ['--projects', projects, '--repos', dir, '--config', file, '--force', '--port', '3999'], dir)
+  assert.notEqual(again.backup, forced.backup)
+  assert.deepEqual(JSON.parse(fs.readFileSync(forced.backup, 'utf8')).streak, { repo: 'x' }, 'a second --force never overwrites the first backup')
   const bad = (args, reason) => assert.throws(() => writeConfig(repoRoot, [...args, '--config', path.join(dir, 'x.json')], dir), reason)
   bad(['--repos', dir], /--projects and --repos are required/)
   bad(['--projects', path.join(dir, 'nope'), '--repos', dir], /--projects folder not found/)
@@ -163,7 +166,8 @@ test('init writes a config that loads, keeps a backup on --force and rejects bad
   bad(['--projects', projects, '--repos', dir, '--port', '70000'], /--port must be a number/)
   bad(['--projects', projects, '--repos', dir, '--bogus'], /bogus/)
   assert.ok(!fs.existsSync(path.join(dir, 'x.json')), 'a rejected config is not left behind')
-  assert.deepEqual(fs.readdirSync(path.join(dir, 'conf')).sort(), ['tracker.config.json', 'tracker.config.json.bak'], 'no temp files left')
+  assert.equal(fs.readdirSync(path.join(dir, 'conf')).filter(f => f.includes('.tmp-')).length, 0, 'no temp files left')
+  assert.equal(fs.readdirSync(path.join(dir, 'conf')).length, 3)
   const rel = path.relative(os.homedir(), projects)
   if (!rel.startsWith('..') && !path.isAbsolute(rel)) {
     const viaHome = writeConfig(repoRoot, ['--projects', `~/${rel.replace(/\\/g, '/')}`, '--repos', dir, '--config', path.join(dir, 'home.json')], dir)

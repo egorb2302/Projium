@@ -1,6 +1,6 @@
 .env.local
 tracker.config.json
-tracker.config.json.bak
+tracker.config.json.bak*
 data/
 node_modules/
 .local/

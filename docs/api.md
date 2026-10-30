@@ -28,7 +28,7 @@ A card entry:
 | `repoInfo` | `repo` (folder name), `readiness` (`proven`, `total`, `audit`, `commit`), `freshness` (`state`: `current`, `changed-after`, `no-audit-commit`, `audit-commit-unknown`, `git-unavailable`, `no-repo`, plus commit counts), `updates` (release plan and update branches). |
 | `health` | `last` check `{ ts, code, ms, error }`, `uptime24` (percent), `checks24`. |
 | `prodUpdates` | `{ entries, checkedAt, configError }`. Each entry: `n` (update number, `null` for a site flag outside the release plan), `flags` (`{ name, prod }`), `branch` (`{ name, sha, inMain }` or `null`), `state` (`on`, `off`, `partly`, `merged`, `branch`, `unknown`). |
-| `timeSplit` | `null` when the card has no repo. Otherwise `{ sessions, agents, at, phases }`; `phases` has `toFirstPush`, `toMainnet` and `total` only when both milestone times of that phase are set. Each phase: milliseconds of `work`, `review`, `waiting`, `pause`, `missing`, plus `total` and `hasData`. |
+| `timeSplit` | `null` when the card has no repo, the project is ignored, or the first transcript scan (a few seconds after start, then hourly) has not run yet. Otherwise `{ sessions, agents, at, phases }`; `phases` has `toFirstPush`, `toMainnet` and `total` only when both milestone times of that phase are set. Each phase: milliseconds of `work`, `review`, `waiting`, `pause`, `missing`, plus `total` and `hasData`. |
 | `zone` | The configured UTC offset, like `+03:00`. |
 | `ignored` | `true` for projects matched by the `ignore` list. |
 
@@ -69,7 +69,7 @@ Every write changes one thing and checks that it did not change since you read i
 
 **Send the digest now:** `POST /api/digest/send` with `{}`. `409` when no channel is configured or a send is in progress.
 
-**Stop the server:** `POST /api/shutdown` with `{}`, which is what `npm run stop` uses. Returns `{ "stopping": true }`.
+**Stop the server:** `POST /api/shutdown` with `{}`, which is what `npm run stop` uses. Returns `{ "stopping": true }`; `404` when the server was not started from the command line (`npm start`, `start:bg`, autostart).
 
 ## Example
 

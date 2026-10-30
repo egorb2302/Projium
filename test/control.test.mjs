@@ -5,7 +5,43 @@ import os from 'node:os'
 import path from 'node:path'
 import http from 'node:http'
 import { fileURLToPath } from 'node:url'
-import { startBackground, stopServer, whoIsOn } from '../lib/control.mjs'
+import { startBackground, stopServer, whoIsOn, serverEnv } from '../lib/control.mjs'
+
+test('an older Projium without /api/meta is recognized and neither started over nor stopped', async t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-legacy-'))
+  const old = http.createServer((req, res) => {
+    if (req.url === '/api/digest') {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      return res.end(JSON.stringify({ text: 'digest', at: '10:00', lastAuto: null }))
+    }
+    res.writeHead(404)
+    res.end('{}')
+  })
+  await new Promise(r => old.listen(0, '127.0.0.1', r))
+  const port = old.address().port
+  const keepPort = process.env.PORT
+  process.env.PORT = String(port)
+  t.after(() => {
+    if (keepPort === undefined) delete process.env.PORT
+    else process.env.PORT = keepPort
+    old.close()
+    fs.rmSync(dir, { recursive: true, force: true })
+  })
+  fs.mkdirSync(path.join(dir, 'p'))
+  const file = path.join(dir, 'tracker.config.json')
+  fs.writeFileSync(file, JSON.stringify({ projectsDir: path.join(dir, 'p'), reposDir: dir }))
+  const on = await whoIsOn(port, path.join(dir, 'p'))
+  assert.deepEqual([on.running, on.legacy, on.sameInstance], [true, true, false])
+  assert.match((await startBackground(repoRoot, { file })).error, /older Projium without \/api\/meta/)
+  assert.match((await stopServer(repoRoot, { file })).error, /older Projium/)
+  process.env.PORT = '0'
+  assert.match((await startBackground(repoRoot, { file })).error, /needs a fixed port/)
+})
+
+test('the background server gets only the environment it needs', () => {
+  const env = serverEnv({ PATH: '/bin', Path: 'x', USERPROFILE: 'u', TELEGRAM_BOT_TOKEN: 't', OPENAI_API_KEY: 'sk-x', npm_config_cache: 'c', AWS_SECRET_ACCESS_KEY: 's' }, { TRACKER_CONFIG: 'f' })
+  assert.deepEqual(Object.keys(env).sort(), ['PATH', 'Path', 'TELEGRAM_BOT_TOKEN', 'TRACKER_CONFIG', 'USERPROFILE'])
+})
 
 const repoRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 
@@ -50,7 +86,7 @@ test('start:bg starts a detached server once, stop stops only that server', asyn
   fs.writeFileSync(foreign, JSON.stringify({ projectsDir: path.join(dir, 'other'), reposDir: dir, port }))
   const refused = await stopServer(repoRoot, { file: foreign })
   assert.equal(refused.ok, false)
-  assert.match(refused.error, /another projectsDir/)
+  assert.match(refused.error, /another projects folder/)
   assert.equal((await whoIsOn(port, projects)).sameInstance, true, 'a stop with another config leaves the server running')
 
   const stopped = await stopServer(repoRoot, { file })

@@ -92,7 +92,7 @@ npm run --silent init -- --projects "<absolute projectsDir>" --repos "<absolute 
 
 - `--offset` is the owner's UTC offset for the times in cards. Ask, or take it from their clock; set it explicitly where daylight saving applies. Keep the `=` form: `--offset -05:00` with a space is rejected, `--offset=-05:00` works.
 - `--transcripts "<folder>"` when Claude Code transcripts are not in `~/.claude/projects` of the user running Projium.
-- Also: `--port`, `--readiness`, `--lang en|ru`, `--ignore word1,word2` (projects whose name or repo path contains a word: no repo reads, no site checks), `--force` (replaces an existing config with only these flags; the old file is kept as `tracker.config.json.bak`).
+- Also: `--port`, `--readiness`, `--lang en|ru`, `--ignore word1,word2` (projects whose name or repo path contains a word: no repo reads, no site checks), `--force` (replaces an existing config with only these flags; the old file is kept as `tracker.config.json.bak-<time>`, never overwritten).
 
 It prints `{ "ok": true, "written": ... }` or `{ "ok": false, "error": ... }`. All config keys: [tracker.config.schema.json](tracker.config.schema.json). `PORT` in the environment or in `.env.local` overrides the config's `port`.
 
@@ -123,9 +123,11 @@ It exits 0 with `ok: true` when `problems` is empty and at least one card is sho
 npm run --silent start:bg
 ```
 
-Starts the server detached (logs in `data/server.out.log` and `data/server.err.log`), waits until it answers and prints `{ "ok": true, "url", "pid" }`. Running it again while the server is up prints `already: true`. Stop it with `npm run --silent stop`, which stops only the Projium that serves this config. `npm start` runs it in the foreground instead.
+Starts the server detached (logs `server.out.log` and `server.err.log` next to the database, `data/` by default), waits until it answers and prints `{ "ok": true, "url", "pid" }`. Running it again while the server is up prints `already: true` (with a `note` if the running server is an older version: stop and start it). Stop it with `npm run --silent stop`, which stops only a Projium serving the same projects folder. `npm start` runs it in the foreground instead.
 
-Check: `npm run --silent doctor` shows `server.running: true`, and `GET <server.url>/api/projects` returns the cards. Open `server.url` for the owner.
+If doctor shows `server.legacy: true`, an older Projium (before `/api/meta`) holds the port: end its `node server.mjs` process by hand, once, then use `start:bg`.
+
+Check: `npm run --silent doctor` shows `server.running: true`, and `GET <server.url>/api/projects` returns the cards. Open `server.url` for the owner. If the server is gone after your session ends (some agent harnesses kill every process they started), use autostart below or ask the owner to run `npm run start:bg` once.
 
 Autostart, only with the owner's yes: on Windows, a shortcut in `shell:startup` to `wscript.exe "<Projium>\autostart.vbs"` (runs hidden, logs in `data\`). On macOS or Linux, a launchd agent or a systemd user service that runs `node --no-warnings server.mjs` in the Projium folder.
 
