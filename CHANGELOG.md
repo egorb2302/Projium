@@ -4,7 +4,7 @@ Versions follow [semantic versioning](https://semver.org); each one is a git tag
 
 ## 0.6.1 (2026-11-01)
 
-- The project list opens on All when no project is in progress, instead of an empty In progress list. A filter picked by hand stays until the page is reloaded.
+- The project list opens on All when no project is in progress, instead of an empty In progress list. Until you pick a filter, it is chosen again each time the list opens, so it follows stage changes made on a project page.
 
 ## 0.6.0 (2026-11-01)
 

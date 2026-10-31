@@ -213,22 +213,22 @@ const renderList = async n => {
   const broken = all.filter(p => p.error)
   const projects = all.filter(p => !p.error)
   for (const p of projects) p.sig = signals(p)
-  filter ??= projects.some(p => p.fields.stage !== 'done') ? 'open' : 'all'
+  let cur = filter ?? (projects.some(p => p.fields.stage !== 'done') ? 'open' : 'all')
   const body = h('div')
   const count = h('span', { class: 'count' })
   const paint = () => {
     const q = query.trim().toLowerCase()
     const shown = projects
-      .filter(p => filter === 'all' || (filter === 'done' ? p.fields.stage === 'done' : p.fields.stage !== 'done'))
+      .filter(p => cur === 'all' || (cur === 'done' ? p.fields.stage === 'done' : p.fields.stage !== 'done'))
       .filter(p => !q || [p.name, p.fields.next_step, p.fields.status].some(v => String(v ?? '').toLowerCase().includes(q)))
       .sort(Object.hasOwn(SORTS, sortBy) ? SORTS[sortBy] : SORTS.urgent)
     count.textContent = t('countOf', shown.length, projects.length)
     body.replaceChildren(!shown.length ? h('p', { class: 'muted empty' }, t('noMatches')) : view === 'table' ? listTable(shown) : h('div', { class: 'grid' }, shown.map(card)))
   }
   const chips = ['open', 'done', 'all'].map(k => h('button', {
-    class: `chip${filter === k ? ' on' : ''}`,
+    class: `chip${cur === k ? ' on' : ''}`,
     onclick: e => {
-      filter = k
+      cur = filter = k
       for (const c of chips) c.classList.toggle('on', c === e.currentTarget)
       paint()
     },
