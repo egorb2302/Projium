@@ -235,36 +235,34 @@ const tempProjects = t => {
 
 test('a failing auto digest retries with growing waits, the wait survives a restart, and it stops after ten tries a day', async t => {
   const { make } = tempProjects(t)
-  let now = at('2026-10-24T07:00:00Z')
+  let now = at('2026-10-24T03:00:00Z')
   let calls = 0
-  const opts = { clock: () => now, sendDigest: async () => (calls++, Promise.reject(new Error('down'))) }
+  const opts = { digestAt: '06:00', clock: () => now, sendDigest: async () => (calls++, Promise.reject(new Error('down'))) }
+  const step = async (minutes, want, msg) => {
+    now += minutes * 60e3
+    await app.digestTick()
+    assert.equal(calls, want, msg)
+  }
   let app = make(opts)
   await quiet(async () => {
     await app.digestTick()
-    now += 16 * 60e3
-    await app.digestTick()
+    await step(14, 1, 'no retry before 15 minutes')
+    await step(2, 2, 'the first retry comes after 15 minutes')
   })
-  assert.equal(calls, 2, 'the first retry comes after 15 minutes')
   app.db.close()
   app = make(opts)
   await quiet(async () => {
-    await app.digestTick()
-    now += 16 * 60e3
-    await app.digestTick()
-    assert.equal(calls, 2, 'the second wait is 30 minutes, also after a restart')
-    now += 16 * 60e3
-    await app.digestTick()
-    assert.equal(calls, 3)
-    now += 61 * 60e3
-    await app.digestTick()
-    assert.equal(calls, 4, 'then an hour')
-    for (let i = 0; i < 8; i++) {
-      now += 121 * 60e3
-      await app.digestTick()
-    }
+    await step(0, 2, 'the wait survives a restart')
+    await step(28, 2, 'the second wait is 30 minutes')
+    await step(3, 3)
+    await step(58, 3, 'the third wait is an hour')
+    await step(3, 4)
+    await step(118, 4, 'then two hours')
+    await step(3, 5)
+    for (let n = 6; n <= 10; n++) await step(121, n)
+    await step(121, 10, 'ten tries a day at most')
   })
-  assert.equal(calls, 10, 'then every two hours, ten tries a day at most')
-  now = at('2026-10-25T07:00:00Z')
+  now = at('2026-10-25T03:00:00Z')
   await quiet(() => app.digestTick())
   assert.equal(calls, 11, 'tries again the next day')
   app.db.close()
