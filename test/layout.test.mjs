@@ -11,6 +11,8 @@ import { survey } from '../lib/survey.mjs'
 import { diagnose } from '../lib/doctor.mjs'
 import { fileURLToPath } from 'node:url'
 
+const fid = (store, name) => store.load(name).fileId
+
 const temp = t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-layout-'))
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }))
@@ -116,23 +118,23 @@ test('writing a mapped field changes exactly that line, in the owner key and wor
   put(file, ACME)
   const store = createStore(dir, OWNER)
 
-  const reviewed = store.saveField('Acme Shop', 'stage', 'review', 'development')
+  const reviewed = store.saveField('Acme Shop', 'stage', 'review', 'development', fid(store, 'Acme Shop'))
   assert.equal(reviewed.fields.stage, 'review')
   let text = fs.readFileSync(file, 'utf8')
   assert.match(text, /^status: waiting for client review$/m, 'owner wording, unquoted like before')
   assert.doesNotMatch(text, /^stage:/m, 'no Projium key is added')
   assert.equal(diffLines(ACME, text), 1)
 
-  store.saveField('Acme Shop', 'stage', 'fixes', 'review')
+  store.saveField('Acme Shop', 'stage', 'fixes', 'review', fid(store, 'Acme Shop'))
   assert.match(fs.readFileSync(file, 'utf8'), /^status: fixes$/m, 'a stage with no owner word is written as the Projium word')
 
-  store.saveField('Acme Shop', 'spec_at', '2026-10-21T10:15', '2026-10-20T09:30')
+  store.saveField('Acme Shop', 'spec_at', '2026-10-21T10:15', '2026-10-20T09:30', fid(store, 'Acme Shop'))
   assert.match(fs.readFileSync(file, 'utf8'), /^started: 2026-10-21 10:15$/m, 'the owner time format is kept')
-  store.saveField('Acme Shop', 'first_push_at', '2026-10-23T00:00', '2026-10-22T00:00')
+  store.saveField('Acme Shop', 'first_push_at', '2026-10-23T00:00', '2026-10-22T00:00', fid(store, 'Acme Shop'))
   assert.match(fs.readFileSync(file, 'utf8'), /^first_deploy: 2026-10-23$/m, 'a date-only field stays date-only at midnight')
-  store.saveField('Acme Shop', 'first_push_at', '2026-10-23T18:40', '2026-10-23T00:00')
+  store.saveField('Acme Shop', 'first_push_at', '2026-10-23T18:40', '2026-10-23T00:00', fid(store, 'Acme Shop'))
   assert.match(fs.readFileSync(file, 'utf8'), /^first_deploy: 2026-10-23T18:40$/m)
-  store.saveField('Acme Shop', 'next_step', 'ship the cart', 'checkout page')
+  store.saveField('Acme Shop', 'next_step', 'ship the cart', 'checkout page', fid(store, 'Acme Shop'))
   assert.match(fs.readFileSync(file, 'utf8'), /^next: "ship the cart"$/m, 'a quoted value stays quoted')
 
   text = fs.readFileSync(file, 'utf8')
@@ -140,7 +142,7 @@ test('writing a mapped field changes exactly that line, in the owner key and wor
   assert.equal(text.split('\n').length, ACME.split('\n').length)
 
   fs.writeFileSync(file, text.replace('status: fixes', 'status: shipped'))
-  assert.throws(() => store.saveField('Acme Shop', 'stage', 'review', 'fixes'), e => e instanceof Conflict && e.current === 'done')
+  assert.throws(() => store.saveField('Acme Shop', 'stage', 'review', 'fixes', fid(store, 'Acme Shop')), e => e instanceof Conflict && e.current === 'done')
   assert.match(fs.readFileSync(file, 'utf8'), /^status: shipped$/m, 'a conflicting write changes nothing')
 })
 
@@ -149,14 +151,14 @@ test('tasks go to the owner heading, and an unmapped field can still be added', 
   const file = path.join(dir, 'Acme Shop.md')
   put(file, ACME)
   const store = createStore(dir, OWNER)
-  const added = store.saveTask('Acme Shop', { op: 'add', task: { text: 'Payment webhooks', due: '2026-11-08', p: 'p1' } })
+  const added = store.saveTask('Acme Shop', { op: 'add', task: { text: 'Payment webhooks', due: '2026-11-08', p: 'p1' } }, fid(store, 'Acme Shop'))
   assert.equal(added.tasks.length, 3)
   const text = fs.readFileSync(file, 'utf8')
   assert.match(text, /## Todo\n\n- \[ \] Checkout page\n- \[x\] Product grid · p2 \^t-ab12\n- \[ \] Payment webhooks · due 2026-11-08 · p1 \^t-[a-z0-9]{4}\n/)
   assert.doesNotMatch(text, /## Tasks/)
-  const toggled = store.saveTask('Acme Shop', { op: 'toggle', id: 't-ab12', expected: { done: true, text: 'Product grid', due: '', p: 'p2' } })
+  const toggled = store.saveTask('Acme Shop', { op: 'toggle', id: 't-ab12', expected: { done: true, text: 'Product grid', due: '', p: 'p2' } }, fid(store, 'Acme Shop'))
   assert.equal(toggled.tasks.find(x => x.id === 't-ab12').done, false)
-  const withSite = store.saveField('Acme Shop', 'accepted_by', 'Acme', '')
+  const withSite = store.saveField('Acme Shop', 'accepted_by', 'Acme', '', fid(store, 'Acme Shop'))
   assert.equal(withSite.fields.accepted_by, 'Acme')
   assert.match(fs.readFileSync(file, 'utf8'), /^accepted_by: "Acme"$/m)
 })
@@ -189,7 +191,10 @@ test('the API serves flat mapped cards without local paths and writes through th
   assert.equal(one.json.fieldKeys.stage, 'status')
   assert.ok(!one.text.includes(dir.replace(/\\/g, '\\\\')), 'no local paths, including the readiness file path')
   assert.equal(one.json.readinessFile, undefined)
-  const w = await call('POST', `/api/projects/${encodeURIComponent('Acme Shop')}/field`, { key: 'stage', value: 'done', expected: 'development' })
+  const noId = await call('POST', `/api/projects/${encodeURIComponent('Acme Shop')}/field`, { key: 'stage', value: 'done', expected: 'development' })
+  assert.equal(noId.status, 400, 'flat layout writes need the fileId')
+  assert.match(fs.readFileSync(path.join(projects, 'Acme Shop.md'), 'utf8'), /^status: in progress$/m)
+  const w = await call('POST', `/api/projects/${encodeURIComponent('Acme Shop')}/field`, { key: 'stage', value: 'done', expected: 'development', fileId: one.json.fileId })
   assert.equal(w.status, 200)
   assert.match(fs.readFileSync(path.join(projects, 'Acme Shop.md'), 'utf8'), /^status: shipped$/m)
 })
@@ -231,8 +236,10 @@ test('the doctor reads a flat mapped setup and points at unmapped owner words', 
   assert.match(by.Paused.warnings.join('\n'), /status: "on hold" is not a Projium stage; add it to cards\.stages/)
   assert.match(by['Acme Shop'].warnings.join('\n'), /1 task\(s\) without a \^t-xxxx id/)
   assert.doesNotMatch(by['Acme Shop'].warnings.join('\n'), /outside the ## Todo/)
-  assert.match(r.hints.join('\n'), /1 note\(s\) do not match cards\.filter and are not shown \(Inbox\.md;/)
-  assert.deepEqual(r.filteredOutNotes, ['Inbox.md'])
+  assert.match(r.hints.join('\n'), /1 note\(s\) do not match cards\.filter and are not shown; run npm run --silent doctor -- --verbose/)
+  assert.equal(r.filteredOutNotes, undefined, 'names of non-project notes only with --verbose')
+  const loud = await diagnose(path.dirname(path.dirname(fileURLToPath(import.meta.url))), { file, probe: async () => ({ running: false }), verbose: true })
+  assert.deepEqual(loud.filteredOutNotes, ['Inbox.md'])
   assert.deepEqual(by['Acme Shop'].fieldsFrom, { stage: 'status', spec_at: 'started', first_push_at: 'first_deploy', next_step: 'next' })
   assert.equal(by.Paused.fieldsFrom.site, 'site')
   assert.match(r.hints.join('\n'), /1 project\(s\) have a site \(Paused\) read from the site key: .*set cards\.fields\.site to null/)

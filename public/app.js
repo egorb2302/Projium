@@ -190,7 +190,10 @@ const fieldRow = (p, [key, kind], rerender) => {
       rerender(next, key)
     } catch (e) {
       input.classList.add('err')
-      if (e.status === 409) {
+      if (e.status === 409 && e.current === null) {
+        toast(t('reloaded', e.message), true)
+        route()
+      } else if (e.status === 409) {
         row.querySelector('.conflict')?.remove()
         const theirs = e.current ?? ''
         row.append(h('div', { class: 'conflict' },

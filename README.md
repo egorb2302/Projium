@@ -29,7 +29,7 @@ npm run --silent doctor reports ok and the server is running. Ask me before you
 edit or create any notes, add a token or a site to check, or set up autostart.
 ```
 
-The agent reads [AGENTS.md](AGENTS.md): how to find your projects and map your notes to cards, `init` to write the config, `doctor` for a JSON check that says exactly what is missing, and `start:bg` / `stop` to run the server in the background. Afterwards your agents can read and update projects through the [local API](docs/api.md). We tested it with two fresh agents that had only this repo and a sample vault each (one note per project in a flat folder; one folder per project with mismatched names and repo links). Both finished in a few minutes. In the first vault no existing note changed; in the second, where the owner allowed it, only frontmatter lines were added.
+The agent reads [AGENTS.md](AGENTS.md): how to find your projects and map your notes to cards, `init` to write the config, `doctor` for a JSON check that says exactly what is missing, and `start:bg` / `stop` to run the server in the background. Afterwards your agents can read and update projects through the [local API](docs/api.md). We test it by giving fresh agents only this repo and a sample vault that was not written for Projium (one with a note per client in a flat folder and its own status words, one with a folder per project, mismatched note names and repos named in prose). In the latest runs both set it up through the config alone in a few minutes, with repos matched, and the vaults were left byte-for-byte unchanged.
 
 ## Run it
 

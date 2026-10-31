@@ -45,7 +45,9 @@ npm run --silent survey -- --dir "<folder with the project notes>"
 
 It prints every frontmatter key with how many notes use it, its value kinds (text, date, datetime with a space or a `T`, url, list) and, for short text keys, the values themselves; keys and values that look secret are never shown. It also prints `layoutHint` with `layoutAdvice`, `folderMismatch` (folders whose notes are not named like the folder), notes without frontmatter, and the headings that hold checkboxes (`usable: true` only for `##` headings). Read-only.
 
-**Keys Projium reads without a mapping.** A key in the notes named like a Projium field (`site`, `next_step`, `stage`, `repo` ...) is read as is. Watch for `site` in the survey: it turns on uptime checks of that URL every 10 minutes. Unless the owner said yes to that, set `"fields": { "site": null }`.
+`folderCards` counts `<folder>/<folder>.md` notes, `topLevelNotes` notes directly in the folder; `notesWithoutFrontmatter` and `folderMismatch` may include non-project notes, so read them as hints.
+
+**Keys Projium reads without a mapping.** A key in the notes named like a Projium field (`site`, `next_step`, `stage`, `repo` ...) is read as is. Watch for `site` in the survey: it turns on uptime checks of that URL every 10 minutes. Unless the owner said yes to that, turn it off: `"cards": { "fields": { "site": null } }` in the config, or `--field-off site` in step 4.
 
 **Choose the layout and the filter:**
 
@@ -66,14 +68,14 @@ It prints every frontmatter key with how many notes use it, its value kinds (tex
 | `started`, `kickoff`, `brief`, `created` (when it marks the start of the work) | `spec_at` |
 | `design approved` | `design_pick_at` |
 | `first deploy`, `first_push`, `live since` | `first_push_at` |
-| `launched`, `released`, `mainnet` | `mainnet_at` |
+| `launched`, `released`, `mainnet` | `mainnet_at` (the production launch; the name comes from crypto projects, it fits any launch) |
 | `delivered`, `handed over` | `handed_over_at` |
 | `accepted` (a date) and the person who accepted the work | `accepted_at`, `accepted_by`. A `client` key usually names the customer, not who accepted: do not map it. |
 | `url`, `site`, `prod` | `site`: **ask first**, it turns on uptime checks |
 
 Keys with spaces cannot be mapped. Date and time formats are read as they are (`2026-10-20 09:30`, `2026-10-20T09:30`, with seconds, date-only); writes keep each field's format. Times are in the owner's UTC offset (step 4). Doctor's `cards[].fieldsFrom` shows which key each field was read from.
 
-**Tasks.** If the owner's to-dos are checkboxes under one heading (`## Todo`, `## Next`), set `"sections": { "tasks": "Todo" }`. Their own lines show as read-only tasks (no task id); tasks added from the dashboard get the Projium format `- [ ] text · due YYYY-MM-DD · p1 ^t-xxxx` in that section.
+**Tasks.** If the owner's to-dos are checkboxes under one `##` heading (`## Todo`, `## Next`), set `"sections": { "tasks": "Todo" }` (that is the heading; a `next:` frontmatter key is a different thing, `next_step`). Their own lines show as read-only tasks (no task id), and dates written inside their text (`(due Nov 8)`) are not read; that is expected, and the doctor's warning about it needs no fix. Do not edit the notes to clear warnings. Tasks added from the dashboard get the Projium format `- [ ] text · due YYYY-MM-DD · p1 ^t-xxxx` in that section.
 
 **Repos.** A project is matched to a folder in `reposDir` with its name, ignoring case, spaces and punctuation (`Acme Shop` finds `acme-shop`). For other names, add them to the config, no note edits needed: `"repos": { "Nebula Wallet": "nebula", "Old Blog": "none" }` (`none` for projects without code). A `repo:` key in the note wins over that; a backticked path after `Repo` in the note body also works. Notes often name the repo in prose (`Code: ~/src/lumen-site`, a GitHub URL): read it, find the local clone, confirm a URL with `git -C <clone> remote get-url origin` when the clone has a remote, and put it into `cards.repos`. `~` means the home folder of the user who runs Projium.
 
@@ -81,11 +83,11 @@ Keys with spaces cannot be mapped. Date and time formats are read as they are (`
 
 ## 3. Find the repos
 
-Find the folder where the owner clones project repos: that is `reposDir`.
+Find the folder where the owner clones project repos: that is `reposDir`. Then decide `cards.repos` for projects whose repo folder is named differently (see **Repos** in step 2); you pass both in step 4. A `~` in the owner's notes means the owner's home, which is not always the home of the user running Projium: resolve it yourself and pass absolute paths.
 
 ## 4. Write the config
 
-Pick a port: 3210 by default. Before the config exists, `npm run --silent doctor` already probes 3210 and shows `server.portBusy: true` when something else answers there; then pass another port with `--port`.
+Pick a port: 3210 by default. Before the config exists, `npm run --silent doctor` already probes 3210 and shows `server.portBusy: true` when something else answers there, including another Projium for a different folder; then pass another free port to `init` with `--port`. Never stop a process you did not start to free a port.
 
 ```
 npm run --silent init -- --projects "<absolute projectsDir>" --repos "<absolute reposDir>" --offset=+03:00
@@ -94,7 +96,8 @@ npm run --silent init -- --projects "<absolute projectsDir>" --repos "<absolute 
 - `--offset` is the owner's UTC offset for the times in cards. Ask, or take it from their clock; set it explicitly where daylight saving applies. Keep the `=` form: `--offset -05:00` with a space is rejected, `--offset=-05:00` works.
 - `--transcripts "<folder>"` when Claude Code transcripts are not in `~/.claude/projects` of the user running Projium.
 - The `cards` part from step 2: `--layout flat`, `--recursive`, `--filter type=client-project` (repeat for more values), `--field stage=status` (repeat per field), `--stage "in progress=development"` (repeat per word), `--tasks-heading Todo`, `--name folder`, `--repo "Nebula Wallet=nebula"` (repeat per project). Turning a field off (`"site": null`) is done in the JSON. Or write the whole `cards` part into the JSON by hand afterwards.
-- `--transcripts` matters more than it looks: the default `~/.claude/projects` is the transcripts folder of the user running Projium. If that is not the owner's Claude Code user, pass the owner's folder.
+- `--transcripts` matters more than it looks: the default `~/.claude/projects` is the transcripts folder of the user running Projium. If that is not the owner's Claude Code user, or the owner keeps Claude Code data elsewhere (`CLAUDE_CONFIG_DIR`), pass the `projects` folder inside the owner's Claude Code data folder.
+- `--stage` and `--repo` split at the last `=`, so an owner word may contain `=`.
 - Also: `--port`, `--readiness` (`"{name} readiness.md"` for the flat layout), `--lang en|ru`, `--ignore word1,word2` (projects whose name or repo path contains a word: no repo reads, no site checks), `--force` (replaces an existing config with only these flags; the old file is kept as `tracker.config.json.bak-<time>`, never overwritten).
 
 Example for flat client notes:
@@ -125,7 +128,7 @@ It exits 0 with `ok: true` when `problems` is empty and at least one card is sho
 | `server.running` | A Projium with this `projectsDir` answers on the port | Start it (step 6). |
 | `server.portBusy` | Something else answers on the port | Change `port`. |
 
-`ok: true` means the setup works. It does not know which projects the owner has: compare `cards[]` with your list from step 2 yourself.
+`ok: true` means the setup works; it does not include whether the server runs (that is `server.running`, step 6), and it does not know which projects the owner has: compare `cards[]` with your list from step 2 yourself. `npm run --silent doctor -- --verbose` also lists up to 20 notes that the filter left out (by name, so only when you need them).
 
 ## 6. Run it
 
@@ -135,7 +138,7 @@ npm run --silent start:bg
 
 Starts the server detached (logs `server.out.log` and `server.err.log` next to the database, `data/` by default), waits until it answers and prints `{ "ok": true, "url", "pid" }`. Running it again while the server is up prints `already: true` (with a `note` if the running server is an older version: stop and start it). Stop it with `npm run --silent stop`, which stops only a Projium serving the same projects folder. `npm start` runs it in the foreground instead.
 
-If doctor shows `server.legacy: true`, an older Projium (before `/api/meta`) holds the port: end its `node server.mjs` process by hand, once, then use `start:bg`.
+If doctor shows `server.legacy: true`, an older Projium (before `/api/meta`) holds the port. Only if it is this same Projium folder (an earlier install you are updating) and the owner agrees, end its `node server.mjs` process once, by its PID, then use `start:bg`. Otherwise leave it and pick another port.
 
 Check: `npm run --silent doctor` shows `server.running: true`, and `GET <server.url>/api/projects` returns the cards. Open `server.url` for the owner. If the server is gone after your session ends (some agent harnesses kill every process they started), use autostart below or ask the owner to run `npm run start:bg` once.
 
@@ -145,7 +148,7 @@ Autostart, only with the owner's yes: on Windows, a shortcut in `shell:startup` 
 
 - **Daily digest:** Telegram (`TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env.local`) or any command (`digest.command` in the config; the text is appended as the last argument; list the environment variables it needs in `digest.env`, because `start:bg` passes the server a filtered environment). Preview at `<server.url>/api/digest` before turning it on.
 - **Readiness:** a `READINESS.md` next to a card with `audit_commit:` and `Ready: X of Y`. Projium shows whether the code changed after that commit.
-- **Time split:** automatic for repos built with Claude Code when `transcriptsDir` is right.
+- **Time split:** automatic for repos built with Claude Code when `transcriptsDir` is right and the card has two milestone times (`spec_at` and `first_push_at`, or `first_push_at` and `mainnet_at`). The first transcript scan runs a few seconds after the server starts, so `timeSplit` is `null` right after `start:bg`.
 
 ## 8. Report to the owner
 

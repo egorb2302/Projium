@@ -3,6 +3,6 @@ import { fileURLToPath } from 'node:url'
 import { diagnose } from '../lib/doctor.mjs'
 
 const here = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
-const report = await diagnose(here)
+const report = await diagnose(here, { verbose: process.argv.includes('--verbose') })
 console.log(JSON.stringify(report, null, 2))
 process.exitCode = report.ok ? 0 : 1

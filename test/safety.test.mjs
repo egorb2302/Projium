@@ -9,6 +9,8 @@ import { readFields } from '../lib/card.mjs'
 import { repoOf } from '../lib/repo.mjs'
 import { survey } from '../lib/survey.mjs'
 
+const fid = (store, name) => store.load(name).fileId
+
 const temp = t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-safety-'))
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }))
@@ -31,9 +33,9 @@ test('a key written with spaces, tabs or quotes is read and rewritten in place, 
   assert.equal(a.fields.stage, 'development')
   assert.equal(a.fields.next_step, 'call client')
   assert.equal(a.fields.spec_at, '2026-10-01T10:00')
-  store.saveField('A', 'stage', 'review', 'development')
-  store.saveField('A', 'next_step', 'send invoice', 'call client')
-  store.saveField('A', 'spec_at', '2026-10-02T11:00', '2026-10-01T10:00')
+  store.saveField('A', 'stage', 'review', 'development', fid(store, 'A'))
+  store.saveField('A', 'next_step', 'send invoice', 'call client', fid(store, 'A'))
+  store.saveField('A', 'spec_at', '2026-10-02T11:00', '2026-10-01T10:00', fid(store, 'A'))
   const text = fs.readFileSync(file, 'utf8')
   assert.equal(text, '---\nstatus: review\nnext: "send invoice"\nstarted: 2026-10-02 11:00\n---\n\nbody\n')
   assert.equal((text.match(/^status/gm) ?? []).length, 1)
@@ -51,7 +53,7 @@ test('anchors, aliases, tags and flow values are locked, not overwritten', t => 
   const store = createStore(dir, { ...FLAT, filter: { status: ['in progress', '[in progress]'] } })
   for (const name of ['anchor', 'tag', 'map']) {
     assert.ok(store.load(name).locked.includes('next_step'), name)
-    assert.throws(() => store.saveField(name, 'next_step', 'x', store.load(name).fields.next_step), /not a plain one-line value/, name)
+    assert.throws(() => store.saveField(name, 'next_step', 'x', store.load(name).fields.next_step, fid(store, name)), /not a plain one-line value/, name)
     assert.equal(fs.readFileSync(path.join(dir, `${name}.md`), 'utf8'), cases[name], `${name} unchanged`)
   }
   assert.ok(store.load('flow').locked.includes('stage'))
@@ -70,7 +72,7 @@ test('seconds in an owner time are kept on write', t => {
   put(file, '---\nstatus: in progress\nstarted: 2026-10-01 10:00:45\n---\n')
   const store = createStore(dir, FLAT)
   assert.equal(store.load('A').fields.spec_at, '2026-10-01T10:00')
-  store.saveField('A', 'spec_at', '2026-10-02T09:15', '2026-10-01T10:00')
+  store.saveField('A', 'spec_at', '2026-10-02T09:15', '2026-10-01T10:00', fid(store, 'A'))
   assert.match(fs.readFileSync(file, 'utf8'), /^started: 2026-10-02 09:15:00$/m)
 })
 
@@ -91,11 +93,60 @@ test('a name that now points at another note refuses writes from a stale page', 
   assert.equal(store.saveField('Clients/Acme', 'stage', 'done', 'fixes', fresh.fileId).fields.stage, 'done')
 })
 
+test('a quoted time with seconds stays quoted, so YAML never reads it as a UTC timestamp', t => {
+  const dir = temp(t)
+  const file = path.join(dir, 'A.md')
+  put(file, '---\nstatus: in progress\nstarted: "2026-10-01 10:00:45"\nnext: "call"\n---\n')
+  const store = createStore(dir, FLAT)
+  store.saveField('A', 'spec_at', '2026-10-02T09:15', '2026-10-01T10:00', fid(store, 'A'))
+  assert.match(fs.readFileSync(file, 'utf8'), /^started: "2026-10-02 09:15:00"$/m)
+  store.saveField('A', 'next_step', '2026-10-22 09:00:00', 'call', fid(store, 'A'))
+  assert.match(fs.readFileSync(file, 'utf8'), /^next: "2026-10-22 09:00:00"$/m)
+})
+
+test('frontmatter with explicit or anchored keys, an indented first key or a value over several lines is not edited', t => {
+  const dir = temp(t)
+  const cases = {
+    explicit: '---\nstatus: in progress\n? next\n: call\n---\n',
+    anchored: '---\nstatus: in progress\n&k next: call\n---\n',
+    indented: '---\n  status: in progress\n  next: call\n---\n',
+    flowmap: '---\nstatus: in progress\nmeta: {a: 1,\nnext: 2}\n---\n',
+    quoted: '---\nstatus: in progress\nnote: "first line\n  second"\n---\n',
+  }
+  for (const [name, text] of Object.entries(cases)) put(path.join(dir, `${name}.md`), text)
+  const store = createStore(dir, { ...FLAT, filter: { type: 'never' } })
+  const plain = createStore(dir, { layout: 'flat', fields: { next_step: 'next', stage: 'status' }, stages: { 'in progress': 'development' } })
+  for (const name of Object.keys(cases)) {
+    const card = plain.loadFile(name, path.join(dir, `${name}.md`))
+    assert.ok(card.locked.includes('next_step') && card.locked.includes('stage'), `${name} is locked`)
+    assert.throws(() => plain.saveField(name, 'next_step', 'x', card.fields.next_step ?? '', card.fileId), /Projium does not edit|no card/, name)
+    assert.equal(fs.readFileSync(path.join(dir, `${name}.md`), 'utf8'), cases[name], `${name} unchanged`)
+  }
+  assert.deepEqual(store.list(), [])
+})
+
+test('repo folders that normalize the same are not guessed, and Report is not a Repo line', t => {
+  const dir = temp(t)
+  for (const d of ['acme-shop', 'acme_shop', 'solo']) fs.mkdirSync(path.join(dir, d, '.git'), { recursive: true })
+  assert.equal(repoOf(dir, 'Acme Shop', ''), null, 'two candidates: no guess')
+  assert.equal(repoOf(dir, 'acme_shop', ''), path.join(dir, 'acme_shop'), 'an exact name still wins')
+  assert.equal(repoOf(dir, 'Clients/Solo', ''), null, 'names by path are not matched loosely')
+  assert.equal(repoOf(dir, 'X', `Report: \`${path.join(dir, 'solo')}\``), null)
+  assert.equal(repoOf(dir, 'X', `**Repo:** \`${path.join(dir, 'solo')}\``), path.join(dir, 'solo'))
+})
+
+test('a title comes from the first heading of the body, not frontmatter comments or code', t => {
+  const dir = temp(t)
+  put(path.join(dir, 'a.md'), '---\n# a comment\nstage: fixes\n---\n\n```\n# not a title\n```\n\n# Real title\n')
+  put(path.join(dir, 'b.md'), '---\nstage: fixes\n---\n\n# ..\n')
+  assert.deepEqual(createStore(dir, { layout: 'flat', name: 'title' }).list().map(c => c.name).sort(), ['Real title', 'b'])
+})
+
 test('a write that moves the note out of the filter still returns the written card', t => {
   const dir = temp(t)
   put(path.join(dir, 'A.md'), '---\nstatus: in progress\n---\n')
   const store = createStore(dir, { ...FLAT, filter: { status: 'in progress' } })
-  const after = store.saveField('A', 'stage', 'done', 'development')
+  const after = store.saveField('A', 'stage', 'done', 'development', fid(store, 'A'))
   assert.equal(after.fields.stage, 'done')
   assert.match(fs.readFileSync(path.join(dir, 'A.md'), 'utf8'), /^status: done$/m)
   assert.deepEqual(store.list(), [])
@@ -108,7 +159,7 @@ test('a field set to null is not read and not written', t => {
   const a = store.load('A')
   assert.equal(a.fields.site, undefined)
   assert.ok(a.locked.includes('site'))
-  assert.throws(() => store.saveField('A', 'site', 'https://other.example.com', ''), /turned off/)
+  assert.throws(() => store.saveField('A', 'site', 'https://other.example.com', '', fid(store, 'A')), /turned off/)
 })
 
 test('a flat card can be named by its folder or its title', t => {
