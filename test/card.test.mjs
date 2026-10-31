@@ -171,6 +171,21 @@ test('comments survive an edit and quotes inside comments do not break reading',
   assert.match(out, /accepted_by: "Kirill" # the client\n/)
 })
 
+test('a quoted value that starts with a bracket or a brace does not lock the card', () => {
+  const card = fm('next_step: "[WIP] call"\nsource: "[[Call]] notes"\nmeta: \'{draft\'')
+  assert.deepEqual(lockedFields(card), [])
+  const out = setField(card, 'next_step', 'ship')
+  assert.match(out, /^next_step: "ship"$/m)
+  assert.equal(readFields(out).source, '[[Call]] notes')
+})
+
+test('a seconds time goes into a plain text field quoted unless the old value was a plain seconds time', () => {
+  assert.match(setField(fm('next_step: call'), 'next_step', '2026-10-22 09:00:00'), /^next_step: "2026-10-22 09:00:00"$/m)
+  assert.match(setField(fm('next_step: call'), 'next_step', '2026-10-22T09:00:00'), /^next_step: "2026-10-22T09:00:00"$/m)
+  assert.match(setField(fm('next_step: 2026-10-21 08:00:00'), 'next_step', '2026-10-22 09:00:00'), /^next_step: 2026-10-22 09:00:00$/m)
+  assert.match(setField(fm('next_step: "2026-10-21 08:00:00"'), 'next_step', '2026-10-22 09:00:00'), /^next_step: "2026-10-22 09:00:00"$/m)
+})
+
 test('BOM is kept and the frontmatter is still found', () => {
   const card = `﻿${fm('next_step: a')}`
   const out = setField(card, 'next_step', 'b')

@@ -12,13 +12,13 @@ Rules for every request:
 
 `GET /api/projects` returns an array, one entry per card. A card that cannot be read appears as `{ "name", "error" }`.
 
-`GET /api/projects/<name>` returns one card with uptime history. `<name>` is the card folder name, URL-encoded.
+`GET /api/projects/<name>` returns one card with uptime history. `<name>` is the card's `name`, URL-encoded.
 
 A card entry:
 
 | Key | Content |
 |---|---|
-| `name` | Folder name of the card. |
+| `name` | The card's folder with the folder layout; with `cards.layout "flat"` its note file, folder or title (`cards.name`). Cards that would share a name are named by their path inside projectsDir, like `Clients/Acme`. |
 | `hash` | Short hash of the card file as read. |
 | `fileId` | Short id of the note file. Send it back as `fileId` with every write: when the project name now resolves to another note (a new note with the same name appeared), the write is refused with `409` instead of going to the wrong file. |
 | `preview` | URL path of the cover image (`/vault/...` or `/og/...`), or `null`. |
@@ -48,14 +48,14 @@ Every write changes one thing and checks that it did not change since you read i
 { "key": "next_step", "value": "Ship update 3", "expected": "the value you read", "fileId": "from the card" }
 ```
 
-`fileId` is optional but recommended on every write (also for tasks).
+Send `fileId` with every write, tasks too. With `cards.layout "flat"` it is required: a write without it gets `400`. With the folder layout it is optional but still recommended.
 
 `key` is one of the editable fields (`stage`, `next_step`, `site`, `accepted_by`, `handed_over_at`, `accepted_at`, `spec_at`, `design_pick_at`, `first_push_at`, `mainnet_at`). `value` is a one-line string; `""` clears it. Dates are `YYYY-MM-DD`, times `YYYY-MM-DDTHH:MM`, `site` is `https://domain`. Returns the updated card. If the field changed meanwhile: `409` with `{ "error", "current" }`; resend with `expected` set to `current` if you still want to write.
 
 **Add a task:** `POST /api/projects/<name>/task`
 
 ```json
-{ "op": "add", "task": { "text": "Write the client readme", "due": "2026-11-05", "p": "p2" } }
+{ "op": "add", "task": { "text": "Write the client readme", "due": "2026-11-05", "p": "p2" }, "fileId": "from the card" }
 ```
 
 `due` and `p` (`p1`, `p2`, `p3`) are optional. The text must be one line without `^` or ` · `. A `## Tasks` section is created when missing.
@@ -63,8 +63,8 @@ Every write changes one thing and checks that it did not change since you read i
 **Toggle or edit a task:**
 
 ```json
-{ "op": "toggle", "id": "t-a1b2", "expected": { "done": false, "text": "...", "due": "", "p": "p1" } }
-{ "op": "edit", "id": "t-a1b2", "expected": { "...": "as read" }, "task": { "text": "New text", "due": "", "p": "p2" } }
+{ "op": "toggle", "id": "t-a1b2", "expected": { "done": false, "text": "...", "due": "", "p": "p1" }, "fileId": "from the card" }
+{ "op": "edit", "id": "t-a1b2", "expected": { "...": "as read" }, "task": { "text": "New text", "due": "", "p": "p2" }, "fileId": "from the card" }
 ```
 
 `expected` is the task exactly as you read it; a mismatch returns `409`.
@@ -81,5 +81,5 @@ Every write changes one thing and checks that it did not change since you read i
 curl -s http://127.0.0.1:3210/api/projects/orbit-swap
 curl -s -X POST http://127.0.0.1:3210/api/projects/orbit-swap/task \
   -H "content-type: application/json" \
-  -d '{"op":"add","task":{"text":"Check the leaderboard","p":"p2"}}'
+  -d '{"op":"add","task":{"text":"Check the leaderboard","p":"p2"},"fileId":"<fileId from the GET above>"}'
 ```

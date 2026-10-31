@@ -212,3 +212,21 @@ test('survey marks heading levels and hides token-looking values', t => {
   assert.ok(!JSON.stringify(s).includes('abcdEFGH'))
   assert.deepEqual(s.checkboxHeadings.map(h => [h.heading, h.level, h.usable]).sort(), [['Next', 2, true], ['Todo', 3, false]])
 })
+
+test('a title equal to the path name of a renamed duplicate does not hide a card', t => {
+  const dir = temp(t)
+  put(path.join(dir, 'Foo.md'), '---\nstage: fixes\n---\n\n# Dup\n')
+  put(path.join(dir, 'Sub', 'Bar.md'), '---\nstage: fixes\n---\n\n# Dup\n')
+  put(path.join(dir, 'c.md'), '---\nstage: review\n---\n\n# Foo\n')
+  const store = createStore(dir, { layout: 'flat', recursive: true, name: 'title' })
+  assert.deepEqual(store.list().map(c => c.name).sort(), ['Foo', 'Sub/Bar', 'c'])
+  assert.equal(store.load('Foo').file, path.join(dir, 'Foo.md'))
+  assert.equal(store.load('c').file, path.join(dir, 'c.md'))
+})
+
+test('survey advises the recursive flat layout when every note sits two folders deep', t => {
+  const dir = temp(t)
+  put(path.join(dir, 'Clients', 'Acme', 'Project.md'), '---\nstatus: live\n---\n')
+  put(path.join(dir, 'Clients', 'Nebula', 'Project.md'), '---\nstatus: live\n---\n')
+  assert.equal(survey(dir).layoutHint, 'flat-recursive')
+})
