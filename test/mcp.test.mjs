@@ -130,7 +130,7 @@ test('an agent reads and writes a project through the MCP server over stdio', { 
   const stale = await call('set_field', { name: 'alpha', key: 'next_step', value: 'other', expected: 'call the client', fileId: got.fileId })
   assert.equal(stale.structuredContent.current, 'send the brief')
   const foreignWrite = await fetch(`http://127.0.0.1:${port}/api/projects/alpha/field`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key: 'next_step', value: 'x', expected: 'send the brief', fileId: got.fileId, instance: 'another-folder' }) })
-  assert.equal(foreignWrite.status, 409, 'a write meant for another Projium is refused by the server itself')
+  assert.equal(foreignWrite.status, 421, 'a write meant for another Projium is refused by the server itself')
   assert.match(fs.readFileSync(card, 'utf8'), /^next_step: send the brief$/m)
 
   const added = (await call('add_task', { name: 'alpha', text: 'Book the call', p: 'p2', fileId: got.fileId })).structuredContent
@@ -180,6 +180,45 @@ test('an agent reads and writes a project through the MCP server over stdio', { 
   const down = await call('list_projects', {})
   assert.equal(down.isError, true)
   assert.match(down.content[0].text, /not running/)
+})
+
+test('every MCP write names its Projium instance, and a 421 says nothing was written', async t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-mcp-inst-'))
+  const projects = path.join(dir, 'projects')
+  fs.mkdirSync(projects)
+  const bodies = []
+  let status = 200
+  const fake = http.createServer((req, res) => {
+    let s = ''
+    req.on('data', c => (s += c))
+    req.on('end', () => {
+      res.writeHead(req.url === '/api/meta' ? 200 : status, { 'content-type': 'application/json' })
+      if (req.url === '/api/meta') return res.end(JSON.stringify({ app: 'projium', version: 'x', instance: instanceId(projects) }))
+      bodies.push(JSON.parse(s))
+      res.end(JSON.stringify(status === 200 ? { name: 'x' } : { error: 'this Projium serves another projects folder' }))
+    })
+  })
+  await new Promise(r => fake.listen(0, '127.0.0.1', r))
+  const port = fake.address().port
+  const keepPort = process.env.PORT
+  process.env.PORT = String(port)
+  t.after(() => {
+    if (keepPort === undefined) delete process.env.PORT
+    else process.env.PORT = keepPort
+    fake.close()
+    fs.rmSync(dir, { recursive: true, force: true })
+  })
+  const file = path.join(dir, 'tracker.config.json')
+  fs.writeFileSync(file, JSON.stringify({ projectsDir: projects, reposDir: dir, port }))
+  const mcp = createMcp({ api: localApi(repoRoot, { file }), version: '1' })
+  const call = async (name, args) => (await mcp(rpc(1, 'tools/call', { name, arguments: args }))).result
+  await call('set_field', { name: 'x', key: 'next_step', value: 'v', expected: '', fileId: 'f' })
+  await call('add_task', { name: 'x', text: 'a', fileId: 'f' })
+  assert.deepEqual(bodies.map(b => b.instance), [instanceId(projects), instanceId(projects)])
+  status = 421
+  const wrong = await call('set_field', { name: 'x', key: 'next_step', value: 'v', expected: '', fileId: 'f' })
+  assert.equal(wrong.isError, true)
+  assert.match(wrong.content[0].text, /another projects folder; nothing was written/)
 })
 
 test('a dashboard that drops the connection mid-answer gives a tool error instead of a hang', { timeout: 15000 }, async t => {

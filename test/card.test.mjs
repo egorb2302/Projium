@@ -220,6 +220,7 @@ test('a number or boolean keeps its type when replaced by another one', () => {
 
 test('keys that YAML reads as true, false or null do not lock the card', () => {
   assert.deepEqual(lockedFields(fm('True: yes\nNull: x\nFALSE: 1')), [])
+  assert.deepEqual(lockedFields(fm('"True": yes\n\'Null\': x')), [], 'quoted keys stay strings')
   assert.match(setField(fm('True: yes\nnext_step: a'), 'next_step', 'b'), /^next_step: b$/m)
 })
 

@@ -110,7 +110,7 @@ const fakeInstall = async (t, serverCode) => {
   t.after(() => {
     if (keepPort === undefined) delete process.env.PORT
     else process.env.PORT = keepPort
-    fs.rmSync(dir, { recursive: true, force: true })
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 })
   })
   return { dir, file }
 }
@@ -133,9 +133,10 @@ test('start:bg reports a server that exits at once, with its exit code', async t
 
 test('start:bg stops a server that never answers instead of leaving it behind', async t => {
   const { dir, file } = await fakeInstall(t, "import fs from 'node:fs'\nfs.writeFileSync('pid.txt', String(process.pid))\nsetInterval(() => {}, 1e6)\n")
-  const r = await startBackground(dir, { file, waitMs: 1500 })
+  const r = await startBackground(dir, { file, waitMs: 3000 })
   assert.equal(r.ok, false)
-  assert.match(r.error, /did not answer within 1\.5 s and was stopped/)
+  assert.match(r.error, /did not answer within 3 s and was stopped/)
+  assert.ok(fs.existsSync(path.join(dir, 'pid.txt')), 'the fake server started')
   const pid = Number(fs.readFileSync(path.join(dir, 'pid.txt'), 'utf8'))
   for (let i = 0; i < 20 && alive(pid); i++) await new Promise(res => setTimeout(res, 100))
   assert.equal(alive(pid), false, 'no orphan server is left')

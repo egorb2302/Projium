@@ -6,7 +6,7 @@ Rules for every request:
 
 - The `Host` header must be `127.0.0.1:<port>` or `localhost:<port>`; anything else gets `403`. curl and most clients send it from the URL.
 - POST bodies are JSON with `content-type: application/json` (otherwise `415`), at most 64 KB. A browser `Origin` header, if present, must be local.
-- Errors come back as `{ "error": "..." }` with `400`, `404`, `409` or `500`.
+- Errors come back as `{ "error": "..." }` with `400`, `404`, `409`, `421` or `500`.
 
 ## Read
 
@@ -40,7 +40,7 @@ A card entry:
 
 ## Write
 
-Every write changes one thing and checks that it did not change since you read it. A write body may also carry `instance` (from `GET /api/meta`): a Projium serving another projects folder then answers `409` and writes nothing. The MCP server always sends it.
+Every write changes one thing and checks that it did not change since you read it. A write body may also carry `instance` (from `GET /api/meta`): a Projium serving another projects folder then answers `421` and writes nothing. The MCP server always sends it.
 
 **Set a field:** `POST /api/projects/<name>/field`
 

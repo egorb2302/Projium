@@ -229,8 +229,54 @@ test('build time survives a deleted transcript and a restart, without any messag
   fs.rmSync(path.join(sdir, 'sess.jsonl'))
   fs.writeFileSync(path.join(sdir, 'sess.desktop-released.json'), L({ v: 1, releasedAt: at(200), reason: 'delete' }))
   fs.writeFileSync(path.join(sdir, 'gone.desktop-released.json'), L({ v: 1, releasedAt: at(200), reason: 'delete' }))
+  fs.writeFileSync(path.join(sdir, 'older.desktop-released.json'), L({ v: 1, releasedAt: at(-600), reason: 'delete' }))
   const after = await split()
   assert.deepEqual(after.phases, before.phases, 'the deleted transcript still counts after a restart')
-  assert.deepEqual([after.sessions, after.kept, after.lost], [1, 1, 1], 'one kept, one deleted before Projium read it')
+  assert.deepEqual([after.sessions, after.kept, after.lost], [1, 1, 1], 'one kept, one deleted before Projium read it, one deleted before the spec')
   assert.ok(!fs.readFileSync(dbFile).includes('SECRET-KEY-123'), 'only times and kinds are stored')
+})
+
+const memoryStore = () => {
+  const db = new Map()
+  return {
+    db,
+    rows: key => [...(db.get(key)?.values() ?? [])].map(r => structuredClone(r)),
+    saveAll: (key, rows) => {
+      const m = db.get(key) ?? new Map()
+      for (const r of rows) m.set(r.file, structuredClone(r))
+      db.set(key, m)
+    },
+  }
+}
+
+test('saved times follow a changed reviewer list, two spellings of one repo and a failed save', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-persist-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  const repo = path.join(root, 'Repos', 'Demo')
+  const d = path.join(root, encodeDir(repo))
+  fs.mkdirSync(path.join(d, 's', 'subagents'), { recursive: true })
+  fs.writeFileSync(path.join(d, 's.jsonl'), [human(0), asst(10)].join('\n'))
+  fs.writeFileSync(path.join(d, 's', 'subagents', 'agent-1.jsonl'), [L({ timestamp: at(1) }), L({ timestamp: at(5) })].join('\n'))
+  fs.writeFileSync(path.join(d, 's', 'subagents', 'agent-1.meta.json'), L({ agentType: 'code-reviewer' }))
+  const store = memoryStore()
+  const kinds = r => r.intervals.map(x => x[2]).sort().join('')
+  assert.ok(!kinds(await createTimeCache({ reviewers: new Set(), persist: store }).collect(root, repo)).includes('r'))
+  assert.ok(kinds(await createTimeCache({ reviewers: new Set(['code-reviewer']), persist: store }).collect(root, repo)).includes('r'), 'a new reviewer list reads the agent again')
+
+  const twoNames = createTimeCache({ reviewers: new Set(['code-reviewer']), persist: store })
+  await twoNames.collect(root, repo)
+  await twoNames.collect(root, repo.toUpperCase())
+  fs.rmSync(path.join(d, 's.jsonl'))
+  fs.rmSync(path.join(d, 's'), { recursive: true })
+  for (const spelling of [repo, repo.toUpperCase()]) assert.equal((await createTimeCache({ reviewers: new Set(['code-reviewer']), persist: store }).collect(root, spelling)).sessions, 1, spelling)
+
+  fs.writeFileSync(path.join(d, 'n.jsonl'), [human(20), asst(30)].join('\n'))
+  let fail = true
+  const flaky = { rows: store.rows, saveAll: (key, rows) => (fail ? (() => { throw new Error('busy') })() : store.saveAll(key, rows)) }
+  const cache = createTimeCache({ reviewers: new Set(['code-reviewer']), persist: flaky })
+  assert.equal((await cache.collect(root, repo)).sessions, 2, 'a failed save still counts in this scan')
+  fail = false
+  await cache.collect(root, repo)
+  fs.rmSync(path.join(d, 'n.jsonl'))
+  assert.equal((await createTimeCache({ reviewers: new Set(['code-reviewer']), persist: store }).collect(root, repo)).sessions, 2, 'and is saved on the next scan')
 })

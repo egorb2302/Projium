@@ -109,7 +109,7 @@ const en = {
   wallClock: 'Wall clock',
   noTranscripts: 'No transcripts left for this project (the app deleted them)',
   noTranscriptPhase: total => `No transcript covers this phase (${total} wall clock)`,
-  lostSessions: n => `${n} session(s) were deleted in the Claude app before Projium read their times, so this split is incomplete`,
+  lostSessions: n => `${n === 1 ? '1 session was' : `${n} sessions were`} deleted in the Claude app before Projium read their times, so this split is incomplete`,
   splitNote: 'From Claude Code transcripts of the project folder and its worktrees, timestamps only (message text is never stored or shown). Claude working: from each message until Claude goes quiet, background agents included. Waiting for you: Claude done, your next message within 3 hours. Review: reviewer agents and Codex runs. Pause: gaps over 3 hours inside the recorded sessions (nights, breaks). No transcript: time no recorded session covers. Sessions started from another folder are not counted. Deleting a session in the Claude app deletes its transcript; Projium keeps the times it has already read, so archive sessions instead of deleting them before Projium has seen them',
   medianDesign: 'Median spec to design pick',
   medianPush: 'Median spec to first push',
