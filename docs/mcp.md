@@ -10,19 +10,27 @@ It is a thin client of the running dashboard: every call goes to the local [HTTP
 node scripts/mcp.mjs --check
 ```
 
-Prints JSON: `ok`, the dashboard URL, the tools, the number of projects it sees, and ready-made registration snippets with this folder's absolute paths (`register.claudeCode`, `register.json`). `ok: false` comes with an `error` (most often: Projium is not running).
+Prints JSON: `ok`, the dashboard URL, the tools, the number of projects it sees, and ready-made registration snippets with this computer's absolute paths: `register.claudeCode` and `register.codex` (commands), `register.codexToml` (a block for `config.toml`) and `register.json` (an `mcpServers` entry). They carry `TRACKER_CONFIG` and `PORT` when you set them, so the registered server reads the same config. `ok: false` comes with an `error` (most often: Projium is not running). Prefer these snippets over typing paths by hand.
 
 ## Register it
 
-Ask the owner first: the tools can write into their notes.
+Ask the owner first: the tools can write into their notes. In the examples below, replace `/path/to/Projium` with the absolute path; on Windows forward slashes work (`D:/tools/Projium/scripts/mcp.mjs`), and when `node` is not on the client's PATH use the full path `--check` prints.
 
-Claude Code (all projects of this user):
+Claude Code (all projects of this user); check with `claude mcp list`:
 
 ```
 claude mcp add --transport stdio --scope user projium -- node --no-warnings /path/to/Projium/scripts/mcp.mjs
 ```
 
-Codex (`~/.codex/config.toml`):
+In Windows PowerShell, if `claude` is a `.ps1` script, PowerShell drops the `--`; run the command in cmd or call `claude.cmd`.
+
+Codex; check with `codex mcp list`:
+
+```
+codex mcp add projium -- node --no-warnings /path/to/Projium/scripts/mcp.mjs
+```
+
+or the same block in `config.toml` (in `CODEX_HOME`, `~/.codex` by default):
 
 ```toml
 [mcp_servers.projium]
@@ -30,13 +38,15 @@ command = "node"
 args = ["--no-warnings", "/path/to/Projium/scripts/mcp.mjs"]
 ```
 
+In TOML, backslashes in double-quoted strings must be doubled; `register.codexToml` already does that.
+
 Clients that read an `mcpServers` JSON (Claude Desktop, Cursor, a project `.mcp.json`):
 
 ```json
 { "mcpServers": { "projium": { "type": "stdio", "command": "node", "args": ["--no-warnings", "/path/to/Projium/scripts/mcp.mjs"] } } }
 ```
 
-Use absolute paths; on Windows forward slashes work (`D:/tools/Projium/scripts/mcp.mjs`). When `node` is not on the client's PATH, use the full path that `--check` prints. A non-default config file is passed with `TRACKER_CONFIG` in the server's environment, as for the other commands. Start a new client session afterwards; most clients read MCP servers at startup.
+A non-default config file goes into the server's environment as `TRACKER_CONFIG` (`--env TRACKER_CONFIG=...` for both CLIs, `env = { TRACKER_CONFIG = "..." }` in TOML, `"env"` in JSON). Start a new client session afterwards; clients read MCP servers at startup.
 
 ## Tools
 
@@ -50,7 +60,7 @@ Use absolute paths; on Windows forward slashes work (`D:/tools/Projium/scripts/m
 | `edit_task` | Text, due date or priority of a task; left-out fields stay. | the note |
 | `refresh_project` | Re-reads git, the audit, the live site config and the build time for one project. | no (makes the site check's network calls) |
 | `digest_preview` | The digest text as it would be sent now. Sends nothing. | no |
-| `doctor` | The doctor report. | no |
+| `doctor` | The doctor report, with local paths like `npm run --silent doctor`. | no |
 
 Writes: read with `get_project` first and pass `fileId` and the values exactly as read. A field or task that changed since then comes back as a tool error with the current value (`structuredContent.current`); read again rather than retrying blindly. Locked fields and invalid values come back as tool errors with the reason.
 

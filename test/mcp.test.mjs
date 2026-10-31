@@ -6,7 +6,9 @@ import path from 'node:path'
 import readline from 'node:readline'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { createMcp, TOOLS, LEGACY, MODERN } from '../lib/mcp.mjs'
+import http from 'node:http'
+import { createMcp, localApi, TOOLS, LEGACY, MODERN } from '../lib/mcp.mjs'
+import { instanceId } from '../lib/config.mjs'
 import { createApp } from '../server.mjs'
 
 const repoRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
@@ -15,7 +17,7 @@ const fakeApi = responses => {
   const calls = []
   return {
     calls,
-    url: 'http://127.0.0.1:1',
+    url: () => 'http://127.0.0.1:1',
     call: async (method, p, body) => {
       calls.push({ method, p, body })
       return responses[`${method} ${p}`] ?? { status: 404, json: { error: 'not found' } }
@@ -44,8 +46,12 @@ test('the MCP server speaks both the initialize era and the 2026-07-28 stateless
   assert.equal(bad.error.data.requested, '1999-01-01')
   assert.equal((await mcp(rpc(5, 'resources/list'))).error.code, -32601)
   assert.equal((await mcp(rpc(6, 'tools/call', { name: 'nope', arguments: {} }))).error.code, -32602)
-  assert.equal((await mcp([rpc(7, 'ping')])).error.code, -32600)
-  assert.deepEqual((await mcp(rpc(8, 'ping'))).result, { resultType: 'complete' })
+  assert.deepEqual(await mcp([rpc(7, 'ping'), { jsonrpc: '2.0', method: 'notifications/initialized' }]), [{ jsonrpc: '2.0', id: 7, result: { resultType: 'complete' } }], 'a batch gets one reply per request')
+  assert.equal((await mcp([])).error.code, -32600)
+  assert.equal((await mcp(rpc({ a: 1 }, 'ping'))).error.code, -32600)
+  assert.equal((await mcp(rpc(true, 'ping'))).id, null)
+  assert.equal((await mcp({ jsonrpc: '1.0', id: 'x', method: 'ping' })).id, 'x')
+  assert.deepEqual((await mcp(rpc('s', 'ping'))).result, { resultType: 'complete' })
   const list = await mcp(rpc(9, 'tools/list', meta(MODERN)))
   assert.deepEqual(list.result.tools.map(t => t.name), TOOLS.map(t => t.name))
   for (const t of list.result.tools) assert.equal(t.inputSchema.type, 'object', t.name)
@@ -60,7 +66,12 @@ test('tool arguments are checked before any call, and a conflict comes back as a
   assert.match((await call('toggle_task', { name: 'x', id: 't-12', expected: { done: false, text: 'a', due: '', p: '' }, fileId: 'f' })).content[0].text, /wrong format/)
   assert.match((await call('add_task', { name: 'x', text: 'a', fileId: 'f', extra: 1 })).content[0].text, /not a known argument/)
   assert.match((await call('edit_task', { name: 'x', id: 't-1234', expected: { done: false, text: 'a', due: '', p: '' }, fileId: 'f' })).content[0].text, /at least one of text, due or p/)
+  assert.match((await call('get_project', { name: '' })).content[0].text, /must not be empty/)
+  assert.match((await call('get_project', JSON.parse('{"name":"x","__proto__":1}'))).content[0].text, /not a known argument/)
+  assert.match((await call('list_projects', { toString: 1 })).content[0].text, /not a known argument/)
   assert.equal(api.calls.length, 0)
+  await call('get_project', { name: '..' })
+  assert.equal(api.calls.pop().p, '/api/projects/%2E%2E', 'dots are encoded, so a name never walks to another route')
   const conflict = await call('set_field', { name: 'Clients/Acme', key: 'next_step', value: 'ship', expected: 'call', fileId: 'f' })
   assert.equal(conflict.isError, true)
   assert.deepEqual(conflict.structuredContent, { conflict: true, error: 'next_step was changed outside the dashboard', current: 'call Bob' })
@@ -127,9 +138,64 @@ test('an agent reads and writes a project through the MCP server over stdio', { 
   assert.match(fs.readFileSync(card, 'utf8'), new RegExp(`^- \\[ \\] Book the call · due 2026-11-05 · p2 \\^${task.id}$`, 'm'))
   assert.match((await call('digest_preview', {})).structuredContent.text, /alpha/)
 
+  const check = file =>
+    new Promise(resolve => {
+      const c = spawn(process.execPath, ['--no-warnings', path.join(repoRoot, 'scripts', 'mcp.mjs'), '--check'], { env: { ...process.env, TRACKER_CONFIG: file, PORT: String(port) }, stdio: ['ignore', 'pipe', 'inherit'] })
+      let out = ''
+      c.stdout.on('data', d => (out += d))
+      c.on('close', code => resolve({ code, json: JSON.parse(out) }))
+    })
+  const good = await check(config)
+  assert.equal(good.code, 0, JSON.stringify(good.json))
+  assert.equal(good.json.projects, 1)
+  assert.ok(good.json.register.claudeCode.includes(`--env "TRACKER_CONFIG=${config}"`), 'the registration keeps the config file')
+  assert.ok(good.json.register.codex.startsWith('codex mcp add --env'))
+  assert.match(good.json.register.codexToml, /^env = \{ TRACKER_CONFIG = ".+", PORT = "\d+" \}$/m)
+  assert.equal(good.json.register.json.mcpServers.projium.env.TRACKER_CONFIG, config)
+  const other = path.join(dir, 'other.config.json')
+  fs.mkdirSync(path.join(dir, 'elsewhere'))
+  fs.writeFileSync(other, JSON.stringify({ projectsDir: path.join(dir, 'elsewhere'), reposDir: dir, port }))
+  const foreign = await check(other)
+  assert.equal(foreign.code, 1)
+  assert.match(foreign.json.error, /another projects folder/)
+  const broken = path.join(dir, 'broken.config.json')
+  fs.writeFileSync(broken, '{ not json')
+  assert.equal((await check(broken)).json.ok, false, 'a broken config is reported, not a crash')
+
   await app.stop()
   app = null
   const down = await call('list_projects', {})
   assert.equal(down.isError, true)
   assert.match(down.content[0].text, /not running/)
+})
+
+test('a dashboard that drops the connection mid-answer gives a tool error instead of a hang', { timeout: 15000 }, async t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-mcp-cut-'))
+  const projects = path.join(dir, 'projects')
+  fs.mkdirSync(projects)
+  const fake = http.createServer((req, res) => {
+    if (req.url === '/api/meta') {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      return res.end(JSON.stringify({ app: 'projium', version: 'x', instance: instanceId(projects) }))
+    }
+    res.writeHead(200, { 'content-type': 'application/json', 'content-length': '1000' })
+    res.write('[{"name":')
+    setTimeout(() => res.socket.destroy(), 50)
+  })
+  await new Promise(r => fake.listen(0, '127.0.0.1', r))
+  const port = fake.address().port
+  const keepPort = process.env.PORT
+  process.env.PORT = String(port)
+  t.after(() => {
+    if (keepPort === undefined) delete process.env.PORT
+    else process.env.PORT = keepPort
+    fake.close()
+    fs.rmSync(dir, { recursive: true, force: true })
+  })
+  const file = path.join(dir, 'tracker.config.json')
+  fs.writeFileSync(file, JSON.stringify({ projectsDir: projects, reposDir: dir, port }))
+  const mcp = createMcp({ api: localApi(repoRoot, { file }), version: '1' })
+  const r = (await mcp(rpc(1, 'tools/call', { name: 'list_projects', arguments: {} }))).result
+  assert.equal(r.isError, true)
+  assert.match(r.content[0].text, /closed the connection/)
 })

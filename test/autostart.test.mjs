@@ -12,7 +12,7 @@ const PLATFORMS = ['darwin', 'linux', 'win32']
 const NAME = "projium test & 'q' %h $HOME"
 
 const twice = (s, ch) => s.split(ch).join(ch + ch)
-const shq = s => `"${s.replace(/[\\"$`]/g, '\\$&')}"`
+const shq = s => `'${s.replace(/'/g, "'\\''")}'`
 const unit = s => `"${twice(s, '%').replace(/[\\"]/g, '\\$&')}"`
 const unxml = s => s.replace(/&(amp|lt|gt|quot|apos);/g, (_, n) => ({ amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" })[n])
 
@@ -115,6 +115,14 @@ test('win32: a Startup shortcut created by one PowerShell command with doubled s
   assert.deepEqual(plan.logs, { out: w.join(w.normalize(here), 'data', 'out.log'), err: w.join(w.normalize(here), 'data', 'err.log') })
   assert.ok(plan.notes.some(n => n.includes('npm run --silent stop') && n.includes('next login')))
   assert.ok(plan.notes.some(n => n.includes('data\\out.log')))
+})
+
+test('a control character in a path or PATH gives ok false instead of a broken entry', t => {
+  const { here, base } = setup(t)
+  for (const platform of PLATFORMS) {
+    assert.equal(autostartPlan(here, { ...base, platform, node: `${base.node}\nExecStartPre=/bin/evil` }).ok, false, platform)
+    assert.equal(autostartPlan(here, { ...base, platform, env: { ...base.env, PATH: '/bin\u0001' } }).ok, false, platform)
+  }
 })
 
 test('an unknown platform gives ok false and nothing to run', t => {

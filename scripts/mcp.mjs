@@ -9,19 +9,40 @@ const version = JSON.parse(fs.readFileSync(path.join(here, 'package.json'), 'utf
 const api = localApi(here)
 const handle = createMcp({ api, version })
 
+const registration = () => {
+  const script = path.join(here, 'scripts', 'mcp.mjs')
+  const args = ['--no-warnings', script]
+  const env = Object.fromEntries(['TRACKER_CONFIG', 'PORT'].filter(k => process.env[k]).map(k => [k, k === 'TRACKER_CONFIG' ? path.resolve(process.env[k]) : process.env[k]]))
+  const q = s => `"${s}"`
+  const flags = Object.entries(env).map(([k, v]) => `--env ${q(`${k}=${v}`)} `).join('')
+  const toml = s => JSON.stringify(s)
+  return {
+    claudeCode: `claude mcp add ${flags}--transport stdio --scope user projium -- ${q(process.execPath)} --no-warnings ${q(script)}`,
+    codex: `codex mcp add ${flags}projium -- ${q(process.execPath)} --no-warnings ${q(script)}`,
+    codexToml: [
+      '[mcp_servers.projium]',
+      `command = ${toml(process.execPath)}`,
+      `args = [${args.map(toml).join(', ')}]`,
+      ...(Object.keys(env).length ? [`env = { ${Object.entries(env).map(([k, v]) => `${k} = ${toml(v)}`).join(', ')} }`] : []),
+    ].join('\n'),
+    json: { mcpServers: { projium: { type: 'stdio', command: process.execPath, args, ...(Object.keys(env).length ? { env } : {}) } } },
+  }
+}
+
 if (process.argv.includes('--check')) {
-  const r = await handle({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'list_projects', arguments: {} } })
-  const res = r.result
-  const report = {
-    ok: !res.isError,
-    url: api.url,
-    protocolVersions: SUPPORTED,
-    tools: TOOLS.map(t => t.name),
-    ...(res.isError ? { error: res.content[0].text } : { projects: res.structuredContent.projects.length }),
-    register: {
-      claudeCode: `claude mcp add --transport stdio --scope user projium -- "${process.execPath}" --no-warnings "${path.join(here, 'scripts', 'mcp.mjs')}"`,
-      json: { mcpServers: { projium: { type: 'stdio', command: process.execPath, args: ['--no-warnings', path.join(here, 'scripts', 'mcp.mjs')] } } },
-    },
+  let report
+  try {
+    const r = (await handle({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'list_projects', arguments: {} } })).result
+    report = {
+      ok: !r.isError,
+      url: api.url(),
+      protocolVersions: SUPPORTED,
+      tools: TOOLS.map(t => t.name),
+      ...(r.isError ? { error: r.content[0].text } : { projects: r.structuredContent.projects.length }),
+      register: registration(),
+    }
+  } catch (e) {
+    report = { ok: false, error: String(e?.message ?? e) }
   }
   console.log(JSON.stringify(report, null, 2))
   process.exitCode = report.ok ? 0 : 1

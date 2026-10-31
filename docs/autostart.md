@@ -30,7 +30,7 @@ Run the `disable` commands in order. They stop the service, delete the entry's f
 ## Things to know
 
 - A clean `npm run --silent stop` does not restart the server (macOS `KeepAlive` with `SuccessfulExit` false, Linux `Restart=on-failure`); a crash does.
-- The entry pins the `node` that ran the helper. After switching or upgrading node, run the helper again and replace the entry: disable, write, enable.
+- macOS and Linux entries pin the `node` that ran the helper. After switching or upgrading node, run the helper again and replace the entry: disable, write, enable. On Windows, `autostart.vbs` starts `node` from PATH at login and writes `data\out.log` and `data\err.log` (not the `server.out.log` and `server.err.log` of `start:bg`).
 - macOS and Linux entries pass `TRACKER_CONFIG` when the config file is not `tracker.config.json` in the Projium folder. Windows cannot: `autostart.vbs` always uses the default config, so the helper answers `ok: false` there.
 - The entry sets only `PATH` (and `TRACKER_CONFIG`). Variables listed in `digest.env` are not copied (they may be secrets); add them to the entry only if the digest command needs them and the owner agrees.
 - Linux: a user service runs while the owner has a login session. `loginctl enable-linger $USER` keeps it running without one and starts it at boot. Run it only if the owner says yes. `StandardOutput=append:` needs systemd 240 or newer.
