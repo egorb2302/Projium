@@ -22,7 +22,7 @@ Claude Code (all projects of this user); check with `claude mcp list`:
 claude mcp add --transport stdio --scope user projium -- node --no-warnings /path/to/Projium/scripts/mcp.mjs
 ```
 
-In Windows PowerShell, if `claude` is a `.ps1` script, PowerShell drops the `--`; run the command in cmd or call `claude.cmd`.
+In Windows PowerShell, when `claude` or `codex` resolves to an npm `.ps1` shim, PowerShell drops the `--`; run the command in cmd or call `claude.cmd` / `codex.cmd`. On Windows, `--check` leaves the commands out (`null`, with a `note`) when a path holds `$`, `` ` ``, `%` or `"`; use the TOML or JSON form then.
 
 Codex; check with `codex mcp list`:
 

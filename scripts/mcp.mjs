@@ -13,12 +13,16 @@ const registration = () => {
   const script = path.join(here, 'scripts', 'mcp.mjs')
   const args = ['--no-warnings', script]
   const env = Object.fromEntries(['TRACKER_CONFIG', 'PORT'].filter(k => process.env[k]).map(k => [k, k === 'TRACKER_CONFIG' ? path.resolve(process.env[k]) : process.env[k]]))
-  const q = s => `"${s}"`
-  const flags = Object.entries(env).map(([k, v]) => `--env ${q(`${k}=${v}`)} `).join('')
+  const quote = s => (process.platform !== 'win32' ? `'${s.replace(/'/g, "'\\''")}'` : /["$`%]/.test(s) ? null : `"${s}"`)
+  const words = [...Object.entries(env).map(([k, v]) => `${k}=${v}`), process.execPath, script].map(quote)
+  const shellSafe = words.every(Boolean)
+  const flags = words.slice(0, -2).map(w => `--env ${w} `).join('')
+  const [node, file] = words.slice(-2)
   const toml = s => JSON.stringify(s)
   return {
-    claudeCode: `claude mcp add ${flags}--transport stdio --scope user projium -- ${q(process.execPath)} --no-warnings ${q(script)}`,
-    codex: `codex mcp add ${flags}projium -- ${q(process.execPath)} --no-warnings ${q(script)}`,
+    claudeCode: shellSafe ? `claude mcp add ${flags}--transport stdio --scope user projium -- ${node} --no-warnings ${file}` : null,
+    codex: shellSafe ? `codex mcp add ${flags}projium -- ${node} --no-warnings ${file}` : null,
+    ...(shellSafe ? {} : { note: 'A path has characters that cmd or PowerShell would expand ($, `, %, "); use codexToml or json instead of the commands.' }),
     codexToml: [
       '[mcp_servers.projium]',
       `command = ${toml(process.execPath)}`,
