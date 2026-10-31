@@ -43,7 +43,7 @@ npm start
 
 Open http://127.0.0.1:3210. With no config file you see four demo projects from `demo/`.
 
-`npm run start:bg` starts it in the background and `npm run stop` stops it. On Windows, `start-tracker.cmd` starts the server if it is not running and opens the browser (it assumes the default port 3210).
+`npm run start:bg` starts it in the background and `npm run stop` stops it; `npm run start:bg -- --open` also opens it in the browser. On Windows, double-clicking `start-tracker.cmd` does the same.
 
 ## Point it at your projects
 
@@ -105,7 +105,7 @@ The digest lists projects in progress, next steps, urgent tasks, sites that are 
 - The API returns only the documented card fields, repo folder names instead of paths, and file system errors by code, so a key you keep in a card's frontmatter or a local path does not reach the browser or the digest. Digest command and git failures are reported by exit code, never by their output.
 - Transcript parsing keeps timestamps and event kinds only. Message text is read in memory for three fixed checks and is never stored or returned; a test asserts a planted secret does not reach the API.
 - Images are served only from inside `projectsDir` (and the repo's own `public/og.*`); symlinks and junctions that lead outside are not followed. Git is read with `--no-optional-locks` and never fetched or written, except the opt-in `streak` repo.
-- Local state (uptime history, digest log) lives in `data/tracker.db`.
+- Local state lives in `data/tracker.db`: uptime history, the digest log, and the build-time intervals read from transcripts (start, end and kind of each stretch, nothing else). Those intervals are kept when the Claude app deletes a transcript, so a deleted session still counts.
 - Writes into your notes are checked twice: line by line, and by parsing the frontmatter as YAML before and after. A write is refused unless every other key reads exactly as before and the field holds exactly the new value. Frontmatter that does not parse, or hides a key inside another value, makes the card read-only.
 
 ## Tests

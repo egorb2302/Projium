@@ -129,6 +129,9 @@ test('an agent reads and writes a project through the MCP server over stdio', { 
   assert.match(fs.readFileSync(card, 'utf8'), /^next_step: send the brief$/m)
   const stale = await call('set_field', { name: 'alpha', key: 'next_step', value: 'other', expected: 'call the client', fileId: got.fileId })
   assert.equal(stale.structuredContent.current, 'send the brief')
+  const foreignWrite = await fetch(`http://127.0.0.1:${port}/api/projects/alpha/field`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key: 'next_step', value: 'x', expected: 'send the brief', fileId: got.fileId, instance: 'another-folder' }) })
+  assert.equal(foreignWrite.status, 409, 'a write meant for another Projium is refused by the server itself')
+  assert.match(fs.readFileSync(card, 'utf8'), /^next_step: send the brief$/m)
 
   const added = (await call('add_task', { name: 'alpha', text: 'Book the call', p: 'p2', fileId: got.fileId })).structuredContent
   const task = added.tasks.find(x => x.text === 'Book the call')

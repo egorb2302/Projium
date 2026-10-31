@@ -23,14 +23,14 @@ A card entry:
 | `fileId` | Short id of the note file. Send it back as `fileId` with every write: when the project name now resolves to another note (a new note with the same name appeared), the write is refused with `409` instead of going to the wrong file. |
 | `preview` | URL path of the cover image (`/vault/...` or `/og/...`), or `null`. |
 | `fields` | `status`, `stage`, `next_step`, `site`, `accepted_by`, `handed_over_at`, `accepted_at`, `spec_at`, `design_pick_at`, `first_push_at`, `mainnet_at` when present. Other frontmatter keys are never returned. |
-| `fieldKeys` | Fields mapped to the owner's own frontmatter keys (`cards.fields`), like `{ "stage": "status" }`. Writes go to those keys. |
+| `fieldKeys` | Fields mapped to the owner's own frontmatter keys (`cards.fields`), like `{ "stage": "status" }`, whether or not this note has the key yet. Writes go to those keys; writing a field the note does not have adds the owner's key. |
 | `locked` | Field names the dashboard will not write (not a plain one-line value in the card). |
 | `tasks` | `{ id, done, text, due, p }`; `readonly: true` for tasks without a `^t-` id. |
 | `updates`, `timeline` | Lines of `## Updates` and rows of the `## Timeline` table. |
 | `repoInfo` | `repo` (folder name), `readiness` (`proven`, `total`, `audit`, `commit`), `freshness` (`state`: `current`, `changed-after`, `no-audit-commit`, `audit-commit-unknown`, `git-unavailable`, `no-repo`, plus commit counts), `updates` (release plan and update branches). |
 | `health` | `last` check `{ ts, code, ms, error }`, `uptime24` (percent), `checks24`. |
 | `prodUpdates` | `{ entries, checkedAt, configError }`. Each entry: `n` (update number, `null` for a site flag outside the release plan), `flags` (`{ name, prod }`), `branch` (`{ name, sha, inMain }` or `null`), `state` (`on`, `off`, `partly`, `merged`, `branch`, `unknown`). |
-| `timeSplit` | `null` when the card has no repo, the project is ignored, or the first transcript scan (a few seconds after start, then hourly) has not run yet. Otherwise `{ sessions, agents, at, phases }`; `phases` has `toFirstPush`, `toMainnet` and `total` only when both milestone times of that phase are set. Each phase: milliseconds of `work`, `review`, `waiting`, `pause`, `missing`, plus `total` and `hasData`. |
+| `timeSplit` | `null` when the card has no repo, the project is ignored, or the first transcript scan (a few seconds after start, then hourly) has not run yet. Otherwise `{ sessions, agents, kept, lost, at, phases }`: `kept` counts sessions whose transcript is gone but whose times Projium had already saved, `lost` counts sessions deleted in the Claude app before Projium read them (their time is missing); `phases` has `toFirstPush`, `toMainnet` and `total` only when both milestone times of that phase are set. Each phase: milliseconds of `work`, `review`, `waiting`, `pause`, `missing`, plus `total` and `hasData`. |
 | `zone` | The configured UTC offset, like `+03:00`. |
 | `ignored` | `true` for projects matched by the `ignore` list. |
 
@@ -40,7 +40,7 @@ A card entry:
 
 ## Write
 
-Every write changes one thing and checks that it did not change since you read it.
+Every write changes one thing and checks that it did not change since you read it. A write body may also carry `instance` (from `GET /api/meta`): a Projium serving another projects folder then answers `409` and writes nothing. The MCP server always sends it.
 
 **Set a field:** `POST /api/projects/<name>/field`
 

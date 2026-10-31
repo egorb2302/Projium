@@ -191,3 +191,46 @@ test('the server collects transcripts per project and shows the split without an
   const p = ts.phases.toFirstPush
   assert.deepEqual([p.work, p.waiting, p.review, p.pause, p.missing].map(min), [60, 30, 10, 0, 20])
 })
+
+test('build time survives a deleted transcript and a restart, without any message text in the database', async t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-keep-'))
+  const projects = path.join(dir, 'projects')
+  const repos = path.join(dir, 'repos')
+  const transcripts = path.join(dir, 'transcripts')
+  const dbFile = path.join(dir, 'db', 't.db')
+  fs.mkdirSync(path.join(projects, 'demo'), { recursive: true })
+  fs.mkdirSync(path.join(repos, 'demo', '.git'), { recursive: true })
+  fs.writeFileSync(path.join(projects, 'demo', 'demo.md'), ['---', 'stage: done', 'spec_at: 2026-10-20T13:00', 'first_push_at: 2026-10-20T15:00', '---', ''].join('\n'))
+  const sdir = path.join(transcripts, encodeDir(path.join(repos, 'demo')))
+  fs.mkdirSync(sdir, { recursive: true })
+  fs.writeFileSync(path.join(sdir, 'sess.jsonl'), [human(0, 'SECRET-KEY-123'), asst(30), human(60), asst(90)].join('\n'))
+  let app = null
+  t.after(async () => {
+    await app?.stop()
+    fs.rmSync(dir, { recursive: true, force: true })
+  })
+  const split = async () => {
+    app = createApp({ projectsRoot: projects, reposRoot: repos, dbFile, port: 0, checkHealth: false, transcriptsRoot: transcripts, utcOffset: 180 })
+    const port = await app.start()
+    await app.timeTick()
+    const body = await new Promise((resolve, reject) =>
+      http.get({ host: '127.0.0.1', port, path: '/api/projects/demo', headers: { host: `127.0.0.1:${port}` } }, res => {
+        let s = ''
+        res.on('data', c => (s += c))
+        res.on('end', () => resolve(JSON.parse(s).timeSplit))
+      }).on('error', reject))
+    await app.stop()
+    app = null
+    return body
+  }
+  const before = await split()
+  assert.equal(before.phases.toFirstPush.work, 60 * 60e3)
+  assert.deepEqual([before.kept, before.lost], [0, 0])
+  fs.rmSync(path.join(sdir, 'sess.jsonl'))
+  fs.writeFileSync(path.join(sdir, 'sess.desktop-released.json'), L({ v: 1, releasedAt: at(200), reason: 'delete' }))
+  fs.writeFileSync(path.join(sdir, 'gone.desktop-released.json'), L({ v: 1, releasedAt: at(200), reason: 'delete' }))
+  const after = await split()
+  assert.deepEqual(after.phases, before.phases, 'the deleted transcript still counts after a restart')
+  assert.deepEqual([after.sessions, after.kept, after.lost], [1, 1, 1], 'one kept, one deleted before Projium read it')
+  assert.ok(!fs.readFileSync(dbFile).includes('SECRET-KEY-123'), 'only times and kinds are stored')
+})

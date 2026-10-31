@@ -69,7 +69,7 @@ test('linux: a systemd user unit with quoted ExecStart, systemd-quoted Environme
   assert.equal(plan.file, path.join(base.home, '.config', 'systemd', 'user', name))
   const lines = plan.content.split('\n')
   const server = path.join(here, 'server.mjs')
-  assert.ok(lines.includes('[Unit]') && lines.includes('After=network-online.target'))
+  assert.ok(lines.includes('[Unit]') && !lines.some(l => l.startsWith('After=')), 'a user manager cannot order after system targets')
   assert.ok(lines.includes('Type=simple') && lines.includes('Restart=on-failure'))
   assert.ok(lines.includes(`WorkingDirectory=${twice(here, '%')}`), 'a percent sign in a path is doubled')
   assert.ok(lines.includes(`ExecStart=${unit(base.node)} --no-warnings ${unit(twice(server, '$'))}`), 'paths are quoted, % and $ doubled')

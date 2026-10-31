@@ -45,7 +45,7 @@ npm run --silent survey -- --dir "<folder with the project notes>"
 
 It prints every frontmatter key with how many notes use it, its value kinds (text, date, datetime with a space or a `T`, url, list) and, for short text keys, the values themselves; keys and values that look secret are never shown. It also prints `layoutHint` with `layoutAdvice`, `folderMismatch` (folders whose notes are not named like the folder), notes without frontmatter, and the headings that hold checkboxes (`usable: true` only for `##` headings). Read-only.
 
-`folderCards` counts `<folder>/<folder>.md` notes, `topLevelNotes` notes directly in the folder; `notesWithoutFrontmatter` and `folderMismatch` may include non-project notes, so read them as hints.
+`folderCards` counts `<folder>/<folder>.md` notes, `topLevelNotes` notes directly in the folder; `notesWithoutFrontmatter` (the first 20 named in `withoutFrontmatter`) and `folderMismatch` may include non-project notes, so read them as hints.
 
 **Keys Projium reads without a mapping.** A key in the notes named like a Projium field (`site`, `next_step`, `stage`, `repo` ...) is read as is. Watch for `site` in the survey: it turns on uptime checks of that URL every 10 minutes. Unless the owner said yes to that, turn it off: `"cards": { "fields": { "site": null } }` in the config, or `--field-off site` in step 4.
 
@@ -140,7 +140,7 @@ Starts the server detached (logs `server.out.log` and `server.err.log` next to t
 
 If doctor shows `server.legacy: true`, an older Projium (before `/api/meta`) holds the port. Only if it is this same Projium folder (an earlier install you are updating) and the owner agrees, end its `node server.mjs` process once, by its PID, then use `start:bg`. Otherwise leave it and pick another port.
 
-Check: `npm run --silent doctor` shows `server.running: true`, and `GET <server.url>/api/projects` returns the cards. Open `server.url` for the owner. With a port other than 3210, ignore `start-tracker.cmd` and the `127.0.0.1:3210` in the README: both assume the default port. If the server is gone after your session ends (some agent harnesses kill every process they started), use autostart below or ask the owner to run `npm run start:bg` once.
+Check: `npm run --silent doctor` shows `server.running: true`, and `GET <server.url>/api/projects` returns the cards. Open `server.url` for the owner. With a port other than 3210, the `127.0.0.1:3210` in the README does not apply: use `server.url`. If the server is gone after your session ends (some agent harnesses kill every process they started), use autostart below or ask the owner to run `npm run start:bg` once.
 
 Autostart, only with the owner's yes: `npm run --silent autostart` prints the plan for this OS (a launchd agent, a systemd user service, or a Startup shortcut) and writes nothing. Run `npm run --silent stop` first, then write `file` with `content` (macOS, Linux; nothing to write on Windows), run the `enable` commands in order, run `check`, and confirm `npm run --silent doctor` shows `server.running: true`. Remove it with the `disable` commands. Details: [docs/autostart.md](docs/autostart.md).
 
@@ -148,7 +148,7 @@ Autostart, only with the owner's yes: `npm run --silent autostart` prints the pl
 
 - **Daily digest:** Telegram (`TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env.local`) or any command (`digest.command` in the config; the text is appended as the last argument; list the environment variables it needs in `digest.env`, because `start:bg` passes the server a filtered environment). Preview at `<server.url>/api/digest` before turning it on.
 - **Readiness:** a `READINESS.md` next to a card with `audit_commit:` and `Ready: X of Y`. Projium shows whether the code changed after that commit.
-- **Time split:** automatic for repos built with Claude Code when `transcriptsDir` is right and the card has two milestone times (`spec_at` and `first_push_at`, or `first_push_at` and `mainnet_at`). The first transcript scan runs a few seconds after the server starts, so `timeSplit` is `null` right after `start:bg`.
+- **Time split:** automatic for repos built with Claude Code when `transcriptsDir` is right and the card has two milestone times (`spec_at` and `first_push_at`, or `first_push_at` and `mainnet_at`). The first transcript scan runs a few seconds after the server starts, so `timeSplit` is `null` right after `start:bg`. Deleting a session in the Claude app deletes its transcript: Projium keeps the times it has already read, and counts sessions deleted before that as `timeSplit.lost`; tell the owner to archive sessions rather than delete them. When a card has only one milestone time, ask the owner for the other; if they agree to an estimate (for example `first_push_at` from the first commit on the repo's main branch), write it and say it is approximate.
 - **MCP tools for the owner's agents:** with the owner's yes (the tools can write into their notes), register `scripts/mcp.mjs` in their agent clients so any session can read and update projects. `node scripts/mcp.mjs --check` must print `ok: true` first (the server has to run) and gives the exact registration commands; details in [docs/mcp.md](docs/mcp.md). A new client session picks the server up.
 
 ## 8. Report to the owner

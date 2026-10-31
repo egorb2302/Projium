@@ -2,6 +2,16 @@
 
 Versions follow [semantic versioning](https://semver.org); each one is a git tag (`v0.4.0`). After pulling a new version, restart the server (`npm run --silent stop`, then `npm run --silent start:bg`, or log in again with autostart).
 
+## 0.5.0 (2026-10-31)
+
+- Build time survives deleted transcripts. Deleting a session in the Claude app deletes its transcript (the app leaves a `<session>.desktop-released.json` marker); Projium now keeps the intervals it has read (start, end and kind, no text) in `data/tracker.db`, so the split stays after the transcript is gone and after a restart. `timeSplit.kept` counts such sessions, and `timeSplit.lost` counts sessions deleted before Projium read them; the dashboard shows that the split is incomplete.
+- Writes can carry the Projium `instance`; the server refuses a write meant for another projects folder. The MCP server always sends it, which closes the window between its instance check and the write.
+- `npm run start:bg -- --open` opens the dashboard in the browser; `start-tracker.cmd` uses it, so it follows the configured port.
+- A number or boolean is written unquoted only when the new value is in its plain form (`7`, `true`); `007`, `0x10`, `1e3` or `True` are written as quoted text. Keys like `True:` or `Null:` no longer lock a card.
+- `survey` names the first 20 notes without frontmatter (`withoutFrontmatter`).
+- The systemd unit no longer orders after `network-online.target`, which a user manager cannot see. `--check` also leaves out commands for Windows paths with typographic quotes.
+- Tests for `start:bg` when the server exits at once or never answers.
+
 ## 0.4.0 (2026-10-31)
 
 - MCP server over stdio (`scripts/mcp.mjs`, [docs/mcp.md](docs/mcp.md)) so the owner's agents read and update projects from their own session: `list_projects`, `get_project`, `set_field`, `add_task`, `toggle_task`, `edit_task`, `refresh_project`, `digest_preview`, `doctor`. A thin client of the local HTTP API with the same `expected` and `fileId` checks. Speaks both the `initialize` era (2024-11-05 to 2025-11-25) and the stateless 2026-07-28 revision. `node scripts/mcp.mjs --check` prints the registration commands.

@@ -69,7 +69,16 @@ export const createApp = ({
   const db = openDb(dbFile)
   const repoCache = new Map()
   const prodCache = new Map()
-  const timeCache = createTimeCache({ ignored, reviewers: new Set(reviewAgents) })
+  const timeRows = db.prepare('select file, kind, size, mtime, intervals from transcript_times where repo = ?')
+  const saveTime = db.prepare('insert into transcript_times (repo, file, kind, size, mtime, intervals) values (?, ?, ?, ?, ?, ?) on conflict(repo, file) do update set kind = excluded.kind, size = excluded.size, mtime = excluded.mtime, intervals = excluded.intervals')
+  const timeCache = createTimeCache({
+    ignored,
+    reviewers: new Set(reviewAgents),
+    persist: {
+      rows: repo => timeRows.all(repo).map(r => ({ ...r, intervals: JSON.parse(r.intervals) })),
+      save: (repo, r) => saveTime.run(repo, r.file, r.kind, r.size, r.mtime, JSON.stringify(r.intervals)),
+    },
+  })
   const timeByCard = new Map()
 
   const isIgnored = card => ignored(card.name) || [repoOf(reposRoot, card.name, card.text, undefined, card.repoHint), ...declaredRepos(reposRoot, card.name, card.text, card.repoHint)].some(p => p && ignored(p))
@@ -130,7 +139,7 @@ export const createApp = ({
       t.key = key
       t.phases = projectSplit(t.intervals, card.fields, utcOffset)
     }
-    return { sessions: t.sessions, agents: t.agents, at: t.at, phases: t.phases }
+    return { sessions: t.sessions, agents: t.agents, kept: t.kept, lost: t.lost, at: t.at, phases: t.phases }
   }
 
   const refreshTime = async card => {
@@ -313,6 +322,7 @@ export const createApp = ({
         return send(res, 200, await view(store.load(parts[2]), true))
       if (parts[0] === 'api' && parts[1] === 'projects' && parts[2] && req.method === 'POST') {
         const body = await readBody(req)
+        if (body.instance !== undefined && body.instance !== instanceId(projectsRoot)) return send(res, 409, { error: 'this Projium serves another projects folder; nothing was written' })
         if (parts[3] === 'field') return send(res, 200, await view(store.saveField(parts[2], body.key, body.value, body.expected, body.fileId), true))
         if (parts[3] === 'task') return send(res, 200, await view(store.saveTask(parts[2], body, body.fileId), true))
         if (parts[3] === 'refresh') {

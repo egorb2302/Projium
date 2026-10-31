@@ -13,7 +13,7 @@ const registration = () => {
   const script = path.join(here, 'scripts', 'mcp.mjs')
   const args = ['--no-warnings', script]
   const env = Object.fromEntries(['TRACKER_CONFIG', 'PORT'].filter(k => process.env[k]).map(k => [k, k === 'TRACKER_CONFIG' ? path.resolve(process.env[k]) : process.env[k]]))
-  const quote = s => (process.platform !== 'win32' ? `'${s.replace(/'/g, "'\\''")}'` : /["$`%]/.test(s) ? null : `"${s}"`)
+  const quote = s => (process.platform !== 'win32' ? `'${s.replace(/'/g, "'\\''")}'` : /["$`%“-„]/.test(s) ? null : `"${s}"`)
   const words = [...Object.entries(env).map(([k, v]) => `${k}=${v}`), process.execPath, script].map(quote)
   const shellSafe = words.every(Boolean)
   const flags = words.slice(0, -2).map(w => `--env ${w} `).join('')

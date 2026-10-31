@@ -5,7 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import http from 'node:http'
 import { fileURLToPath } from 'node:url'
-import { startBackground, stopServer, whoIsOn, serverEnv } from '../lib/control.mjs'
+import { startBackground, stopServer, whoIsOn, serverEnv, openCommand } from '../lib/control.mjs'
 
 test('an older Projium without /api/meta is recognized and neither started over nor stopped', async t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-legacy-'))
@@ -96,6 +96,56 @@ test('start:bg starts a detached server once, stop stops only that server', asyn
   assert.equal((await whoIsOn(port, projects)).running, false)
   pid = null
   assert.equal((await stopServer(repoRoot, { file })).stopped, false)
+})
+
+const fakeInstall = async (t, serverCode) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-fake-'))
+  fs.mkdirSync(path.join(dir, 'p'))
+  fs.writeFileSync(path.join(dir, 'server.mjs'), serverCode)
+  const port = await freePort()
+  const file = path.join(dir, 'tracker.config.json')
+  fs.writeFileSync(file, JSON.stringify({ projectsDir: path.join(dir, 'p'), reposDir: dir, port }))
+  const keepPort = process.env.PORT
+  process.env.PORT = String(port)
+  t.after(() => {
+    if (keepPort === undefined) delete process.env.PORT
+    else process.env.PORT = keepPort
+    fs.rmSync(dir, { recursive: true, force: true })
+  })
+  return { dir, file }
+}
+
+const alive = pid => {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+test('start:bg reports a server that exits at once, with its exit code', async t => {
+  const { dir, file } = await fakeInstall(t, 'process.exit(3)\n')
+  const r = await startBackground(dir, { file, waitMs: 10000 })
+  assert.equal(r.ok, false)
+  assert.match(r.error, /exited \(code 3\)/)
+})
+
+test('start:bg stops a server that never answers instead of leaving it behind', async t => {
+  const { dir, file } = await fakeInstall(t, "import fs from 'node:fs'\nfs.writeFileSync('pid.txt', String(process.pid))\nsetInterval(() => {}, 1e6)\n")
+  const r = await startBackground(dir, { file, waitMs: 1500 })
+  assert.equal(r.ok, false)
+  assert.match(r.error, /did not answer within 1\.5 s and was stopped/)
+  const pid = Number(fs.readFileSync(path.join(dir, 'pid.txt'), 'utf8'))
+  for (let i = 0; i < 20 && alive(pid); i++) await new Promise(res => setTimeout(res, 100))
+  assert.equal(alive(pid), false, 'no orphan server is left')
+})
+
+test('--open uses the platform opener', () => {
+  const url = 'http://127.0.0.1:3310'
+  assert.deepEqual(openCommand(url, 'win32'), ['rundll32', ['url.dll,FileProtocolHandler', url]])
+  assert.deepEqual(openCommand(url, 'darwin'), ['open', [url]])
+  assert.deepEqual(openCommand(url, 'linux'), ['xdg-open', [url]])
 })
 
 test('start:bg refuses a port another program uses', async t => {

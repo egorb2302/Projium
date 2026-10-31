@@ -213,6 +213,14 @@ test('a number or boolean keeps its type when replaced by another one', () => {
   assert.match(setField(fm('next_step: false'), 'next_step', 'true'), /^next_step: true$/m)
   assert.match(setField(fm('next_step: 0'), 'next_step', 'call'), /^next_step: call$/m)
   assert.match(setField(fm('next_step: false'), 'next_step', 'yes'), /^next_step: "yes"$/m)
+  for (const typed of ['007', '0x10', '1_000', '+5', '1e3', '1.50']) assert.match(setField(fm('next_step: 0'), 'next_step', typed), new RegExp(`^next_step: "${typed.replace(/[+.]/g, '\\$&')}"$`, 'm'), `${typed} stays the text that was typed`)
+  assert.match(setField(fm('next_step: false'), 'next_step', 'True'), /^next_step: "True"$/m)
+  assert.equal(writeKeepsYaml(fm('next_step: 0'), fm('next_step: 007'), 'next_step', '007'), false)
+})
+
+test('keys that YAML reads as true, false or null do not lock the card', () => {
+  assert.deepEqual(lockedFields(fm('True: yes\nNull: x\nFALSE: 1')), [])
+  assert.match(setField(fm('True: yes\nnext_step: a'), 'next_step', 'b'), /^next_step: b$/m)
 })
 
 test('the YAML check is fast and safe on alias trees and cycles', () => {

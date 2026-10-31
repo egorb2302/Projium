@@ -342,6 +342,8 @@ const renderProject = async (name, n) => {
 const SPLIT = [['work', 'sp-work'], ['review', 'sp-review'], ['waiting', 'sp-wait'], ['pause', 'sp-pause'], ['missing', 'sp-missing']]
 const PHASES = ['total', 'toFirstPush', 'toMainnet']
 
+const lostRow = p => (p.timeSplit?.lost ? [h('tr', { class: 'sub' }, h('td', {}, ''), h('td', { colspan: SPLIT.length + 3, class: 'muted small' }, t('lostSessions', p.timeSplit.lost)))] : [])
+
 const splitPanel = projects => {
   const rows = projects.map(p => ({ p, ph: p.timeSplit?.phases ?? {} })).filter(r => PHASES.some(k => r.ph[k]))
   const h1 = ms => fmtH(ms / 36e5)
@@ -350,7 +352,7 @@ const splitPanel = projects => {
     h('div', { class: 'legend' }, SPLIT.map(([k, cls]) => h('span', {}, h('i', { class: cls }), label(k)))),
     h('div', { class: 'table-wrap' }, h('table', {},
       h('thead', {}, h('tr', {}, h('th', {}, t('project')), h('th', {}, t('phase')), h('th', { class: 'split-col' }, ''), SPLIT.map(([k]) => h('th', { class: 'num' }, label(k))), h('th', { class: 'num' }, t('wallClock')))),
-      h('tbody', {}, rows.flatMap(({ p, ph }) => !Object.values(ph).some(s => s.hasData)
+      h('tbody', {}, rows.flatMap(({ p, ph }) => [...(!Object.values(ph).some(s => s.hasData)
         ? [h('tr', {}, h('td', {}, projectLink(p)), h('td', { colspan: SPLIT.length + 3, class: 'muted small' }, t('noTranscripts')))]
         : PHASES.filter(k => ph[k]).map((k, i) => {
           const s = ph[k]
@@ -365,7 +367,7 @@ const splitPanel = projects => {
             ...SPLIT.map(([key]) => (s[key] < 3 * 60e3 ? h('td', { class: 'num zero' }, '·') : h('td', { class: 'num' }, h1(s[key])))),
             h('td', { class: 'num' }, h1(s.total)))
           return tr
-        }))))),
+        })), ...lostRow(p)])))),
     h('p', { class: 'muted small' }, t('splitNote')))
 }
 
