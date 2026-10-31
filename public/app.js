@@ -106,8 +106,82 @@ const healthDot = p => {
 }
 const projectLink = p => h('a', { href: `#/p/${encodeURIComponent(p.name)}` }, p.name)
 
+const ZONE_RE = /^([+-])(\d\d):(\d\d)$/
+const todayIn = zone => {
+  const m = ZONE_RE.exec(zone ?? '')
+  const off = m ? (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) * 60e3 : -new Date().getTimezoneOffset() * 60e3
+  return new Date(Date.now() + off).toISOString().slice(0, 10)
+}
+const dayDiff = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5)
+const dayLabel = (d, year) => new Date(`${d}T00:00:00Z`).toLocaleDateString(t('locale'), { day: 'numeric', month: 'short', year: year ? 'numeric' : undefined, timeZone: 'UTC' })
+const PRIO = { p1: 0, p2: 1, p3: 2 }
+const taskState = (x, today) => (x.done || !x.due ? '' : x.due < today ? 'over' : dayDiff(today, x.due) <= 2 ? 'soon' : '')
+const taskRank = (x, today) => [x.done ? 1 : 0, taskState(x, today) === 'over' ? 0 : 1, PRIO[x.p] ?? 3, x.due || '9999']
+const sortTasks = (list, today) =>
+  [...list].sort((a, b) => {
+    const ra = taskRank(a, today)
+    const rb = taskRank(b, today)
+    const i = ra.findIndex((v, k) => v !== rb[k])
+    return i < 0 ? 0 : ra[i] < rb[i] ? -1 : 1
+  })
+
+const signals = p => {
+  if (p.ignored) return []
+  const today = todayIn(p.zone)
+  const open = p.tasks.filter(x => !x.done)
+  const live = p.fields.stage !== 'done'
+  const over = open.filter(x => taskState(x, today) === 'over').length
+  const soon = open.filter(x => taskState(x, today) === 'soon').length
+  const p1 = live ? open.filter(x => x.p === 'p1' && taskState(x, today) !== 'over').length : 0
+  const last = p.health?.last
+  const down = live && p.fields.site && last && !(last.code != null && last.code < 400)
+  const f = p.repoInfo?.freshness ?? {}
+  const behind = Math.max(f.sinceLocal ?? 0, f.sinceOrigin ?? 0)
+  const stale = live && f.state === 'changed-after' && (behind || f.dirty)
+  return [
+    down && { tone: 'bad', w: 100, text: t('sigDown') },
+    over && { tone: 'bad', w: 30 * over, text: t('sigOverdue', over) },
+    p1 && { tone: 'warn mono', w: 10 * p1, text: t('sigP1', p1) },
+    soon && { tone: 'warn', w: 8 * soon, text: t('sigSoon', soon) },
+    stale && { tone: 'off', w: 1, text: t('sigStale', behind) },
+  ].filter(Boolean)
+}
+const sigChips = list => (list?.length ? h('div', { class: 'sigs' }, list.map(s => h('span', { class: `pill ${s.tone}` }, s.text))) : null)
+const urgency = p => p.sig.reduce((a, s) => a + s.w, 0)
+const topTask = p => {
+  const today = todayIn(p.zone)
+  const x = sortTasks(p.tasks.filter(y => !y.done), today)[0]
+  return x && (taskState(x, today) || x.p === 'p1') ? x : null
+}
+const stat = (label, value) => h('span', {}, h('small', {}, label), h('b', { class: value == null ? 'nil' : '' }, value == null ? t('nil') : String(value)))
+const readyText = r => (r?.total ? `${r.proven ?? '?'}/${r.total}` : null)
+
+const pref = (k, d) => {
+  try {
+    return localStorage.getItem(k) ?? d
+  } catch {
+    return d
+  }
+}
+const setPref = (k, v) => {
+  try {
+    localStorage.setItem(k, v)
+  } catch {}
+}
+
 let filter = 'open'
+let query = ''
+let view = pref('projium-view', 'cards')
+let sortBy = pref('projium-sort', 'urgent')
+let doneOpen = false
 let seq = 0
+
+const recent = p => p.fields.spec_at || p.fields.first_push_at || ''
+const SORTS = {
+  urgent: (a, b) => urgency(b) - urgency(a) || recent(b).localeCompare(recent(a)),
+  recent: (a, b) => recent(b).localeCompare(recent(a)),
+  name: (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+}
 
 const skCard = () => h('div', { class: 'sk-card' }, h('b'), h('i'), h('i'), h('i'))
 const skPanel = lines => h('div', { class: 'sk-panel' }, h('b'), Array.from({ length: lines }, () => h('i')))
@@ -119,32 +193,110 @@ const skeleton = page =>
       ? [h('div', { class: 'sk-strip sk-kpis' }), skPanel(9), skPanel(12)]
       : [h('div', { class: 'sk-bar' }, h('i'), h('i'), h('i')), h('div', { class: 'grid' }, skCard(), skCard(), skCard(), skCard())]
 
+const pageLink = p => `#/p/${encodeURIComponent(p.name)}`
+
+const attention = projects => {
+  const rows = projects
+    .map(p => ({ p, s: p.sig.filter(x => x.tone !== 'off') }))
+    .filter(r => r.s.length)
+    .sort((a, b) => urgency(b.p) - urgency(a.p))
+  if (!rows.length) return null
+  return h('section', { class: 'panel attn' },
+    h('h2', { class: 'row' }, h('span', {}, t('attention')), h('span', { class: 'n' }, rows.length)),
+    rows.map(({ p, s }) => {
+      const top = topTask(p)
+      return h('a', { class: 'attn-row', href: pageLink(p) },
+        h('span', { class: `dot ${s[0].tone}` }),
+        h('b', {}, p.name),
+        sigChips(s),
+        h('span', { class: 'attn-task' }, top ? rich(top.text) : ''))
+    }))
+}
+
+const card = p => {
+  const d = durations(p.fields)
+  return h('a', { class: 'card', href: pageLink(p) },
+    cover(p),
+    h('div', { class: 'card-body' },
+      h('div', { class: 'card-head' }, healthDot(p), h('h3', {}, p.name), stageChip(p.fields.stage)),
+      p.fields.status ? h('div', { class: 'status' }, p.fields.status) : null,
+      p.fields.next_step ? h('div', { class: 'next' }, rich(p.fields.next_step)) : null,
+      sigChips(p.sig),
+      h('div', { class: 'stats' },
+        stat(t('cardTasks'), p.tasks.filter(x => !x.done).length),
+        stat(t('cardReady'), readyText(p.repoInfo?.readiness)),
+        stat(t('cardPush'), d.push == null ? null : fmtH(d.push)))))
+}
+
+const LIST_COLS = ['', '', 'c-next', '', 'num', 'num c-m', 'num c-m', 'num c-m', 'num c-m']
+const listTable = shown => h('div', { class: 'panel flush' }, h('div', { class: 'table-wrap' }, h('table', { class: 'ptable' },
+  h('thead', {}, h('tr', {}, t('listCols').map((x, i) => h('th', { class: LIST_COLS[i] || null }, x)))),
+  h('tbody', {}, shown.map(p => {
+    const d = durations(p.fields)
+    const cells = [
+      [h('div', { class: 'pname' }, healthDot(p), h('a', { href: pageLink(p) }, p.name)), p.fields.status ? h('div', { class: 'muted small' }, p.fields.status) : null],
+      stageChip(p.fields.stage),
+      h('div', { class: 'clip', title: p.fields.next_step ?? '' }, rich(p.fields.next_step ?? '')),
+      sigChips(p.sig),
+      p.tasks.filter(x => !x.done).length,
+      readyText(p.repoInfo?.readiness) ?? '—',
+      p.health?.uptime24 != null ? `${p.health.uptime24}%` : '—',
+      d.push == null ? '—' : fmtH(d.push),
+      d.total == null ? '—' : fmtH(d.total),
+    ]
+    return h('tr', { onclick: e => e.target.closest('a') || (location.hash = pageLink(p)) }, cells.map((c, i) => h('td', { class: LIST_COLS[i] || null }, c)))
+  })))))
+
 const renderList = async n => {
   const all = await api('/api/projects')
   if (n !== seq) return
   const broken = all.filter(p => p.error)
   const projects = all.filter(p => !p.error)
-  projects.sort((a, b) => (b.fields.spec_at || b.fields.first_push_at || '').localeCompare(a.fields.spec_at || a.fields.first_push_at || ''))
-  const shown = projects.filter(p => filter === 'all' || (filter === 'done' ? p.fields.stage === 'done' : p.fields.stage !== 'done'))
+  for (const p of projects) p.sig = signals(p)
+  const body = h('div')
+  const count = h('span', { class: 'count' })
+  const paint = () => {
+    const q = query.trim().toLowerCase()
+    const shown = projects
+      .filter(p => filter === 'all' || (filter === 'done' ? p.fields.stage === 'done' : p.fields.stage !== 'done'))
+      .filter(p => !q || [p.name, p.fields.next_step, p.fields.status].some(v => String(v ?? '').toLowerCase().includes(q)))
+      .sort(SORTS[sortBy] ?? SORTS.urgent)
+    count.textContent = t('countOf', shown.length, projects.length)
+    body.replaceChildren(!shown.length ? h('p', { class: 'muted empty' }, t('noMatches')) : view === 'table' ? listTable(shown) : h('div', { class: 'grid' }, shown.map(card)))
+  }
+  const chips = ['open', 'done', 'all'].map(k => h('button', {
+    class: `chip${filter === k ? ' on' : ''}`,
+    onclick: e => {
+      filter = k
+      for (const c of chips) c.classList.toggle('on', c === e.currentTarget)
+      paint()
+    },
+  }, t('filters')[k]))
+  const search = h('input', {
+    id: 'search', type: 'search', value: query, placeholder: t('search'), 'aria-label': t('search'), autocomplete: 'off', spellcheck: 'false',
+    oninput: e => ((query = e.target.value), paint()),
+    onkeydown: e => e.key === 'Escape' && ((e.target.value = ''), (query = ''), paint(), e.target.blur()),
+  })
+  const sorter = h('select', { class: 'sort', 'aria-label': t('sortLabel'), onchange: e => ((sortBy = e.target.value), setPref('projium-sort', sortBy), paint()) },
+    Object.entries(t('sorts')).map(([k, v]) => h('option', { value: k, selected: k === sortBy }, v)))
+  const VIEWS = ['cards', 'table']
+  const views = VIEWS.map(k => h('button', {
+    type: 'button', 'aria-pressed': String(view === k),
+    onclick: () => {
+      view = k
+      setPref('projium-view', k)
+      views.forEach((b, i) => b.setAttribute('aria-pressed', String(VIEWS[i] === view)))
+      paint()
+    },
+  }, t('views')[k]))
   render(
+    attention(projects),
     h('div', { class: 'bar' },
-      ['open', 'done', 'all'].map(k => h('button', { class: `chip${filter === k ? ' on' : ''}`, onclick: () => ((filter = k), renderList(seq)) }, t('filters')[k])),
-      h('span', { class: 'count' }, t('countOf', shown.length, projects.length))),
+      h('div', { class: 'bar-l' }, chips, h('label', { class: 'search' }, search, h('kbd', {}, '/'))),
+      h('div', { class: 'bar-r' }, count, sorter, h('div', { class: 'seg', role: 'group', 'aria-label': t('viewLabel') }, views))),
     broken.length ? h('p', { class: 'muted small' }, t('couldNotRead', broken.map(b => `${b.name} (${b.error})`).join(', '))) : null,
-    h('div', { class: 'grid' }, shown.map(p => {
-      const d = durations(p.fields)
-      const open = p.tasks.filter(x => !x.done).length
-      return h('a', { class: 'card', href: `#/p/${encodeURIComponent(p.name)}` },
-        cover(p),
-        h('div', { class: 'card-body' },
-          h('div', { class: 'card-head' }, healthDot(p), h('h3', {}, p.name), stageChip(p.fields.stage)),
-          h('div', { class: 'status' }, p.fields.status ?? ''),
-          p.fields.next_step ? h('div', { class: 'next' }, rich(p.fields.next_step)) : null,
-          h('div', { class: 'stats' },
-            h('span', {}, t('cardPush'), h('b', { class: d.push == null ? 'nil' : '' }, d.push == null ? t('nil') : fmtH(d.push))),
-            h('span', {}, t('cardMainnet'), h('b', { class: d.total == null ? 'nil' : '' }, d.total == null ? t('nil') : fmtH(d.total))),
-            h('span', {}, t('cardTasks'), h('b', {}, open)))))
-    })))
+    body)
+  paint()
 }
 
 const freshnessText = info => {
@@ -164,20 +316,40 @@ const freshnessText = info => {
   return t('auditChanged', f.commit, from, parts.join(', '))
 }
 
+const fmtValue = (kind, v) => {
+  if (!v) return null
+  if (kind !== 'date' && kind !== 'time') return v
+  const [d, tm] = v.split(/[T ]/)
+  return tm ? `${d} ${tm.slice(0, 5)}` : d
+}
+
 const fieldRow = (p, [key, kind], rerender) => {
   const value = p.fields[key] ?? ''
   const id = `f-${key}`
+  const name = t('fields')[key]
   const input = kind === 'stage'
-    ? h('select', { id }, STAGES.map(s => h('option', { value: s, selected: s === value }, stageName(s))))
-    : h('input', { id, value, type: kind === 'date' ? 'date' : kind === 'time' ? 'datetime-local' : 'text', lang: t('locale') })
+    ? h('select', { 'aria-label': name }, STAGES.map(s => h('option', { value: s, selected: s === value }, stageName(s))))
+    : h('input', { value, 'aria-label': name, type: kind === 'date' ? 'date' : kind === 'time' ? 'datetime-local' : 'text', lang: t('locale') })
+  const shown = kind === 'stage' ? (value ? stageChip(value) : null) : fmtValue(kind, value)
+  const locked = p.locked?.includes(key)
+  const view = h('button', { type: 'button', class: `v ${kind}`, id, 'aria-label': t('editField', name), disabled: locked, title: locked ? t('locked') : null },
+    shown == null ? h('span', { class: 'nil' }, '—') : kind === 'text' ? rich(shown) : shown)
   const owner = p.fieldKeys?.[key]
-  const row = h('div', { class: 'field' }, h('label', { for: id, title: owner ? t('ownerKey', owner) : null }, t('fields')[key], owner ? h('span', { class: 'muted' }, ` · ${owner}`) : null), input)
-  if (p.locked?.includes(key)) {
-    input.disabled = true
-    input.title = t('locked')
-    return row
-  }
+  const row = h('div', { class: 'field' }, h('span', { class: 'k', title: owner ? t('ownerKey', owner) : null }, name, owner ? h('span', { class: 'muted' }, ` · ${owner}`) : null), view)
+  if (locked) return row
   let expected = value
+  view.addEventListener('click', () => {
+    row.replaceChild(input, view)
+    input.focus()
+  })
+  input.addEventListener('blur', () => {
+    if (input.value === expected && !row.querySelector('.conflict') && input.isConnected) row.replaceChild(view, input)
+  })
+  input.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return
+    input.value = expected
+    input.blur()
+  })
   const save = async (val, exp) => {
     if (val === exp) return
     try {
@@ -219,15 +391,20 @@ const taskList = (p, rerender) => {
     }
   }
   const expected = x => ({ done: x.done, text: x.text, due: x.due, p: x.p })
-  const items = p.tasks.map(task => {
+  const today = todayIn(p.zone)
+  const meta = task => [
+    task.p ? h('span', { class: `prio ${task.p}` }, task.p) : null,
+    task.due ? h('span', { class: `due ${taskState(task, today)}`, title: task.due }, t('due', dayLabel(task.due, task.due.slice(0, 4) !== today.slice(0, 4)))) : null,
+  ]
+  const item = task => {
     const li = h('li', { class: `task${task.done ? ' done' : ''}` })
     if (task.readonly) {
-      li.append(h('input', { type: 'checkbox', checked: task.done, disabled: true, 'aria-label': task.text }), h('div', {}, h('div', { class: 't-text' }, rich(task.text)), h('div', { class: 'muted small' }, t('noTaskId'))), h('span'))
+      li.append(h('input', { type: 'checkbox', checked: task.done, disabled: true, 'aria-label': task.text }), h('div', {}, h('div', { class: 't-body' }, h('span', { class: 't-text' }, rich(task.text)), meta(task)), h('div', { class: 'muted small' }, t('noTaskId'))), h('span'))
       return li
     }
     const view = () => li.replaceChildren(
       h('input', { type: 'checkbox', checked: task.done, 'aria-label': t('doneLabel', task.text), onchange: () => send({ op: 'toggle', id: task.id, expected: expected(task) }) }),
-      h('div', {}, h('div', { class: 't-text' }, rich(task.text)), h('div', { class: 't-meta' }, task.p ? h('span', { class: `prio ${task.p}` }, task.p) : null, task.due ? h('span', { class: 'due' }, t('due', task.due)) : null)),
+      h('div', { class: 't-body' }, h('span', { class: 't-text' }, rich(task.text)), meta(task)),
       h('button', { onclick: edit }, t('edit')))
     const edit = () => {
       const text = h('input', { value: task.text, 'aria-label': t('taskText') })
@@ -239,14 +416,17 @@ const taskList = (p, rerender) => {
     }
     view()
     return li
-  })
+  }
+  const open = sortTasks(p.tasks.filter(x => !x.done), today)
+  const done = p.tasks.filter(x => x.done)
   const text = h('input', { placeholder: t('newTask'), 'aria-label': t('newTask') })
   const due = h('input', { type: 'date', 'aria-label': t('dueDate'), lang: t('locale') })
   const pr = h('select', { 'aria-label': t('priority') }, ['p2', 'p1', 'p3', ''].map(x => h('option', { value: x }, x || t('none'))))
   const add = () => text.value.trim() && send({ op: 'add', task: { text: text.value, due: due.value, p: pr.value } })
   text.addEventListener('keydown', e => e.key === 'Enter' && add())
   return h('div', {},
-    items.length ? h('ul', { class: 'tasks' }, items) : h('p', { class: 'muted small' }, t('noTasks')),
+    open.length ? h('ul', { class: 'tasks' }, open.map(item)) : done.length ? null : h('p', { class: 'muted small' }, t('noTasks')),
+    done.length ? h('details', { class: 'done-tasks', open: doneOpen, ontoggle: e => (doneOpen = e.currentTarget.open) }, h('summary', {}, t('doneTasks', done.length)), h('ul', { class: 'tasks' }, done.map(item))) : null,
     h('div', { class: 'add' }, text, due, pr, h('button', { class: 'primary', onclick: add }, t('add'))))
 }
 
@@ -259,19 +439,36 @@ const prodPanel = p => {
   if (!s.entries.length)
     return h('p', { class: 'muted small' }, live && !s.checkedAt ? t('configStale') : flags.length ? t('flagsNoPlan', flags.join(', ')) : t('noFlags'))
   const when = s.configError ? t('configFailed', fmtDate(s.checkedAt), s.configError) : s.checkedAt ? t('configRead', fmtDate(s.checkedAt)) : live ? t('configStale') : t('noLiveSite')
+  const tag = e => {
+    const detail = [
+      e.n != null && e.flags.length ? e.flags.map(f => `${f.name}: ${f.prod == null ? t('notInConfig') : f.prod ? t('on') : t('off')}`).join(', ') : null,
+      e.branch ? `${t('branch', e.branch.name, e.branch.sha)}${e.branch.inMain == null ? t('mainCheckFailed') : e.branch.inMain ? t('inMain') : t('notInMain')}` : null,
+    ].filter(Boolean).join('; ')
+    return h('span', { class: 'tag', title: detail || null }, e.n == null ? e.flags[0].name : t('update', e.n))
+  }
+  const groups = Object.keys(PROD_TONES)
+    .map(state => ({ state, items: s.entries.filter(e => (PROD_TONES[e.state] ? e.state : 'unknown') === state) }))
+    .filter(g => g.items.length)
   return h('div', {},
     h('h3', { class: 'sub' }, t('releaseState')),
-    h('ul', { class: 'prod' }, s.entries.map(e => {
-      const state = PROD_TONES[e.state] ? e.state : 'unknown'
-      const what = e.n == null ? e.flags[0].name : t('update', e.n)
-      const detail = [
-        e.n != null && e.flags.length ? e.flags.map(f => `${f.name}: ${f.prod == null ? t('notInConfig') : f.prod ? t('on') : t('off')}`).join(', ') : null,
-        e.branch ? `${t('branch', e.branch.name, e.branch.sha)}${e.branch.inMain == null ? t('mainCheckFailed') : e.branch.inMain ? t('inMain') : t('notInMain')}` : null,
-      ].filter(Boolean).join('; ')
-      return h('li', {}, h('span', { class: `pill ${PROD_TONES[state]}` }, t('prod')[state]), ' ', h('b', {}, what), detail ? h('span', { class: 'muted small' }, ` ${detail}`) : null)
-    })),
+    h('div', { class: 'prod' }, groups.map(g => h('div', { class: 'prod-group' },
+      h('span', { class: `pill ${PROD_TONES[g.state]}` }, `${t('prod')[g.state]} · ${g.items.length}`),
+      h('div', { class: 'tags' }, g.items.map(tag))))),
     h('p', { class: 'muted small' }, t('branchNote', when)))
 }
+
+const auditBadge = info => {
+  const f = info.freshness ?? {}
+  if (f.state === 'current') return h('span', { class: 'pill ok' }, t('auditOk'))
+  if (f.state === 'changed-after') return h('span', { class: 'pill warn' }, t('sigStale', Math.max(f.sinceLocal ?? 0, f.sinceOrigin ?? 0)))
+  return h('span', { class: 'pill off' }, t('auditNone'))
+}
+
+const meter = r => (r?.total
+  ? h('div', { class: 'meter' },
+    h('div', { class: 'meter-top' }, h('span', {}, t('cardReady')), h('b', {}, `${r.proven ?? 0} / ${r.total}`)),
+    h('div', { class: 'meter-track' }, h('i', { style: `width:${Math.min(100, ((r.proven ?? 0) / r.total) * 100)}%` })))
+  : null)
 
 const spark = hist => h('div', { class: 'spark', 'aria-hidden': 'true' },
   hist.slice(-80).map(x => h('i', { class: x.ok ? '' : 'bad', style: `height:${x.ok ? Math.max(4, Math.min(26, 26 - x.ms / 120)) : 26}px`, title: fmtDate(x.ts) })))
@@ -291,15 +488,15 @@ const renderProject = async (name, n) => {
         h('div', {},
           h('p', { class: 'small' }, h('a', { href: '#/' }, t('allProjects'))),
           h('h1', {}, p.name),
-          h('p', {}, stageChip(f.stage), ' ', h('span', { class: 'status' }, f.status ?? '')),
+          h('p', { class: 'head-line' }, stageChip(f.stage), f.status ? h('span', { class: 'status' }, f.status) : null, sigChips(signals(p))),
           f.site ? h('p', { class: 'small' }, healthDot(p), ' ', safeSite(f.site) ? h('a', { href: safeSite(f.site), target: '_blank', rel: 'noreferrer noopener' }, f.site) : f.site,
             p.health?.uptime24 != null ? h('span', { class: 'muted' }, t('uptime', p.health.uptime24, p.health.checks24)) : null) : null,
           p.health?.history?.length ? spark(p.health.history) : null,
-          h('div', { class: 'stats', style: 'margin-top:12px' },
-            h('span', {}, t('specToDesign'), h('b', {}, fmtH(d.design))),
-            h('span', {}, t('specToFirstPush'), h('b', {}, fmtH(d.push))),
-            h('span', {}, t('firstPushToMainnet'), h('b', {}, fmtH(d.mainnet))),
-            h('span', {}, t('specToMainnet'), h('b', {}, fmtH(d.total))))),
+          h('div', { class: 'stats' },
+            stat(t('specToDesign'), d.design == null ? null : fmtH(d.design)),
+            stat(t('specToFirstPush'), d.push == null ? null : fmtH(d.push)),
+            stat(t('firstPushToMainnet'), d.mainnet == null ? null : fmtH(d.mainnet)),
+            stat(t('specToMainnet'), d.total == null ? null : fmtH(d.total)))),
         cover(p)),
       h('div', { class: 'cols' },
         h('div', {},
@@ -307,9 +504,10 @@ const renderProject = async (name, n) => {
             h('p', { class: 'muted small' }, t('fieldsNote', p.zone ?? '+00:00'))),
           h('section', { class: 'panel' }, h('h2', {}, t('tasks')), taskList(p, draw))),
         h('div', {},
-          h('section', { class: 'panel' }, h('h2', {}, t('audit')),
-            r ? h('p', { class: 'small' }, t('readiness', r.proven ?? '?', r.total ?? '?', r.audit || t('undated'))) : null,
-            h('p', { class: 'small' }, freshnessText(info)),
+          h('section', { class: 'panel' }, h('h2', { class: 'row' }, h('span', {}, t('audit')), auditBadge(info)),
+            meter(r),
+            r ? h('p', { class: 'small' }, t('auditAt', r.audit || t('undated'))) : null,
+            h('p', { class: 'small muted' }, freshnessText(info)),
             info.freshness?.head ? h('p', { class: 'muted small' }, t('headLine', info.freshness.head, info.freshness.origin ?? t('none'))) : null,
             h('button', {
               onclick: async e => {
@@ -334,7 +532,12 @@ const renderProject = async (name, n) => {
             p.timeline.length ? h('div', { class: 'table-wrap' }, h('table', {},
               h('thead', {}, h('tr', {}, t('timelineCols').map(x => h('th', {}, x)))),
               h('tbody', {}, p.timeline.map(row => h('tr', {}, row.slice(0, 4).map(c => h('td', {}, rich(c)))))))) : h('p', { class: 'muted small' }, t('noTimeline'))))))
-    if (focusId) document.getElementById(focusId)?.focus()
+    const focused = focusId ? document.getElementById(focusId) : null
+    if (focused) {
+      focused.focus()
+      focused.classList.add('saved')
+      setTimeout(() => focused.classList.remove('saved'), 1200)
+    }
   }
   draw(p)
 }
@@ -342,21 +545,21 @@ const renderProject = async (name, n) => {
 const SPLIT = [['work', 'sp-work'], ['review', 'sp-review'], ['waiting', 'sp-wait'], ['pause', 'sp-pause'], ['missing', 'sp-missing']]
 const PHASES = ['total', 'toFirstPush', 'toMainnet']
 
-const lostRow = p => (p.timeSplit?.lost ? [h('tr', { class: 'sub' }, h('td', {}, ''), h('td', { colspan: SPLIT.length + 3, class: 'muted small' }, t('lostSessions', p.timeSplit.lost)))] : [])
-
 const splitPanel = projects => {
   const rows = projects.map(p => ({ p, ph: p.timeSplit?.phases ?? {} })).filter(r => PHASES.some(k => r.ph[k]))
+  const withData = rows.filter(r => Object.values(r.ph).some(s => s.hasData))
+  const without = rows.filter(r => !withData.includes(r))
   const h1 = ms => fmtH(ms / 36e5)
   const label = k => t('split')[k]
   return h('section', { class: 'panel' }, h('h2', {}, t('whereTime')),
     h('div', { class: 'legend' }, SPLIT.map(([k, cls]) => h('span', {}, h('i', { class: cls }), label(k)))),
     h('div', { class: 'table-wrap' }, h('table', {},
       h('thead', {}, h('tr', {}, h('th', {}, t('project')), h('th', {}, t('phase')), h('th', { class: 'split-col' }, ''), SPLIT.map(([k]) => h('th', { class: 'num' }, label(k))), h('th', { class: 'num' }, t('wallClock')))),
-      h('tbody', {}, rows.flatMap(({ p, ph }) => [...(!Object.values(ph).some(s => s.hasData)
-        ? [h('tr', {}, h('td', {}, projectLink(p)), h('td', { colspan: SPLIT.length + 3, class: 'muted small' }, t('noTranscripts')))]
-        : PHASES.filter(k => ph[k]).map((k, i) => {
+      h('tbody', {}, withData.flatMap(({ p, ph }) =>
+        PHASES.filter(k => ph[k]).map((k, i) => {
           const s = ph[k]
-          const tr = h('tr', { class: i ? 'sub' : '' }, h('td', {}, i ? '' : projectLink(p)), h('td', { class: 'muted' }, t('phases')[k]))
+          const first = [projectLink(p), p.timeSplit?.lost ? h('div', { class: 'muted small' }, t('lostShort', p.timeSplit.lost)) : null]
+          const tr = h('tr', { class: i ? 'sub' : '' }, h('td', {}, i ? '' : first), h('td', { class: 'muted' }, t('phases')[k]))
           if (!s.hasData) {
             tr.append(h('td', { colspan: SPLIT.length + 2, class: 'muted small' }, t('noTranscriptPhase', fmtH(s.total / 36e5))))
             return tr
@@ -367,7 +570,8 @@ const splitPanel = projects => {
             ...SPLIT.map(([key]) => (s[key] < 3 * 60e3 ? h('td', { class: 'num zero' }, '·') : h('td', { class: 'num' }, h1(s[key])))),
             h('td', { class: 'num' }, h1(s.total)))
           return tr
-        })), ...lostRow(p)])))),
+        }))))),
+    without.length ? h('p', { class: 'small nodata' }, t('noTranscriptsList'), without.flatMap((r, i) => [i ? ', ' : '', projectLink(r.p), r.p.timeSplit?.lost ? t('lostIn', r.p.timeSplit.lost) : ''])) : null,
     h('p', { class: 'muted small' }, t('splitNote')))
 }
 
@@ -507,5 +711,10 @@ window.addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest('input, select, textarea')) return
   if (e.key === '1') location.hash = '#/'
   if (e.key === '2') location.hash = '#/time'
+  const search = document.getElementById('search')
+  if (e.key === '/' && search) {
+    e.preventDefault()
+    search.focus()
+  }
 })
 route()

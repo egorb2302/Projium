@@ -12,6 +12,8 @@ It reads your cards and the project repos and shows, per project:
 - uptime of the live site and which feature flags are on in prod;
 - where the build time went, from Claude Code transcripts: Claude working, review, waiting for you, pauses (only timestamps and event kinds are kept; message text is never stored or shown).
 
+The list starts with what needs you: overdue and p1 tasks, deadlines in the next two days, sites that are down. Press `/` to search, sort by urgency, or switch to a dense table.
+
 You can edit card fields and tasks from the dashboard. It writes one field or one task line at a time and never overwrites something you changed in Obsidian meanwhile: it shows what is there now and asks.
 
 Optional: a daily digest to Telegram (or any command you name).
