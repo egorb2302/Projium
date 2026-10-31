@@ -129,7 +129,7 @@ const setPref = (k, v) => {
   } catch {}
 }
 
-let filter = 'open'
+let filter = null
 let query = ''
 let view = pref('projium-view', 'cards') === 'table' ? 'table' : 'cards'
 let sortBy = pref('projium-sort', 'urgent')
@@ -213,6 +213,7 @@ const renderList = async n => {
   const broken = all.filter(p => p.error)
   const projects = all.filter(p => !p.error)
   for (const p of projects) p.sig = signals(p)
+  filter ??= projects.some(p => p.fields.stage !== 'done') ? 'open' : 'all'
   const body = h('div')
   const count = h('span', { class: 'count' })
   const paint = () => {

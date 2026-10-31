@@ -2,6 +2,10 @@
 
 Versions follow [semantic versioning](https://semver.org); each one is a git tag (`v0.4.0`). After pulling a new version, restart the server (`npm run --silent stop`, then `npm run --silent start:bg`, or log in again with autostart).
 
+## 0.6.1 (2026-11-01)
+
+- The project list opens on All when no project is in progress, instead of an empty In progress list. A filter picked by hand stays until the page is reloaded.
+
 ## 0.6.0 (2026-11-01)
 
 - The project list opens with **Needs attention**: projects with overdue tasks, tasks due within two days, p1 tasks or a down site while the project is in work, most urgent first, each with its most urgent task.
