@@ -69,8 +69,8 @@ export const createApp = ({
   const db = openDb(dbFile)
   const repoCache = new Map()
   const prodCache = new Map()
-  const timeRows = db.prepare('select file, kind, size, mtime, sig, intervals from transcript_times where repo = ?')
-  const saveTime = db.prepare('insert into transcript_times (repo, file, kind, size, mtime, sig, intervals) values (?, ?, ?, ?, ?, ?, ?) on conflict(repo, file) do update set kind = excluded.kind, size = excluded.size, mtime = excluded.mtime, sig = excluded.sig, intervals = excluded.intervals')
+  const timeRows = db.prepare('select file, kind, size, mtime, sig, intervals from transcript_intervals where repo = ?')
+  const saveTime = db.prepare('insert into transcript_intervals (repo, file, kind, size, mtime, sig, intervals) values (?, ?, ?, ?, ?, ?, ?) on conflict(repo, file) do update set kind = excluded.kind, size = excluded.size, mtime = excluded.mtime, sig = excluded.sig, intervals = excluded.intervals')
   const timeCache = createTimeCache({
     ignored,
     reviewers: new Set(reviewAgents),

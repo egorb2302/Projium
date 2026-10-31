@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import http from 'node:http'
+import { DatabaseSync } from 'node:sqlite'
 import { sessionIntervals, agentInterval, split, transcriptDirs, encodeDir, projectSplit, cardTime, isHuman, fileIntervals, createTimeCache } from '../lib/timesplit.mjs'
 import { ignoreTest } from '../lib/config.mjs'
 import { createApp } from '../server.mjs'
@@ -234,6 +235,25 @@ test('build time survives a deleted transcript and a restart, without any messag
   assert.deepEqual(after.phases, before.phases, 'the deleted transcript still counts after a restart')
   assert.deepEqual([after.sessions, after.kept, after.lost], [1, 1, 1], 'one kept, one deleted before Projium read it, one deleted before the spec')
   assert.ok(!fs.readFileSync(dbFile).includes('SECRET-KEY-123'), 'only times and kinds are stored')
+})
+
+test('a database from a development build with an older table still opens and serves the split', async t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-olddb-'))
+  const dbFile = path.join(dir, 'db', 't.db')
+  fs.mkdirSync(path.dirname(dbFile), { recursive: true })
+  const old = new DatabaseSync(dbFile)
+  old.exec("create table transcript_times (repo text not null, file text not null, kind text not null, size integer not null, mtime real not null, intervals text not null, primary key (repo, file)); insert into transcript_times values ('r', 'f', 'session', 1, 1, '[]')")
+  old.close()
+  const projects = path.join(dir, 'projects')
+  fs.mkdirSync(path.join(projects, 'demo'), { recursive: true })
+  fs.writeFileSync(path.join(projects, 'demo', 'demo.md'), '---\nstage: done\n---\n')
+  const app = createApp({ projectsRoot: projects, reposRoot: dir, dbFile, port: 0, checkHealth: false, transcriptsRoot: path.join(dir, 't') })
+  t.after(async () => {
+    await app.stop()
+    fs.rmSync(dir, { recursive: true, force: true })
+  })
+  await app.start()
+  await app.timeTick()
 })
 
 const memoryStore = () => {
