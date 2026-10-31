@@ -184,6 +184,16 @@ test('a seconds time goes into a plain text field quoted unless the old value wa
   assert.match(setField(fm('next_step: call'), 'next_step', '2026-10-22T09:00:00'), /^next_step: "2026-10-22T09:00:00"$/m)
   assert.match(setField(fm('next_step: 2026-10-21 08:00:00'), 'next_step', '2026-10-22 09:00:00'), /^next_step: 2026-10-22 09:00:00$/m)
   assert.match(setField(fm('next_step: "2026-10-21 08:00:00"'), 'next_step', '2026-10-22 09:00:00'), /^next_step: "2026-10-22 09:00:00"$/m)
+  assert.match(setField(fm('next_step: 2026-10-21 08:00:00.5'), 'next_step', '2026-10-22 09:00:00'), /^next_step: 2026-10-22 09:00:00$/m)
+  assert.match(setField(fm('first_push_at: 2026-10-21T08:00:00.000Z'), 'first_push_at', '2026-10-22T09:00:00'), /^first_push_at: 2026-10-22T09:00:00$/m)
+})
+
+test('a date keeps the YAML type of the value it replaces', () => {
+  assert.match(setField(fm('next_step: call'), 'next_step', '2026-10-22'), /^next_step: "2026-10-22"$/m)
+  assert.match(setField(fm('next_step: 2026-10-21'), 'next_step', '2026-10-22'), /^next_step: 2026-10-22$/m)
+  assert.match(setField(fm('handed_over_at: "2026-10-21"'), 'handed_over_at', '2026-10-22'), /^handed_over_at: "2026-10-22"$/m)
+  assert.match(setField(fm('handed_over_at:'), 'handed_over_at', '2026-10-22'), /^handed_over_at: 2026-10-22$/m)
+  assert.match(setField(fm('x: 1'), 'accepted_at', '2026-10-22'), /^accepted_at: 2026-10-22$/m)
 })
 
 test('BOM is kept and the frontmatter is still found', () => {

@@ -76,6 +76,17 @@ test('seconds in an owner time are kept on write', t => {
   assert.match(fs.readFileSync(file, 'utf8'), /^started: 2026-10-02 09:15:00$/m)
 })
 
+test('a mapped date field keeps a bare date, and a zoned seconds time stays a YAML timestamp', t => {
+  const dir = temp(t)
+  const file = path.join(dir, 'A.md')
+  put(file, '---\nstatus: in progress\naccepted:\nstarted: 2026-10-21T08:00:00.000Z\n---\n')
+  const store = createStore(dir, { ...FLAT, fields: { ...FLAT.fields, accepted_at: 'accepted' } })
+  store.saveField('A', 'accepted_at', '2026-10-22', '', fid(store, 'A'))
+  assert.match(fs.readFileSync(file, 'utf8'), /^accepted: 2026-10-22$/m)
+  store.saveField('A', 'spec_at', '2026-10-22T09:15', '2026-10-21T08:00:00.000Z', fid(store, 'A'))
+  assert.match(fs.readFileSync(file, 'utf8'), /^started: 2026-10-22T09:15:00$/m)
+})
+
 test('a name that now points at another note refuses writes from a stale page', t => {
   const dir = temp(t)
   const nested = path.join(dir, 'Clients', 'Acme.md')
@@ -112,6 +123,11 @@ test('frontmatter with explicit or anchored keys, an indented first key or a val
     indented: '---\n  status: in progress\n  next: call\n---\n',
     flowmap: '---\nstatus: in progress\nmeta: {a: 1,\nnext: 2}\n---\n',
     quoted: '---\nstatus: in progress\nnote: "first line\n  second"\n---\n',
+    anchorquote: '---\nstatus: in progress\nnote: &n "first\nnext: x"\n---\n',
+    tagquote: "---\nstatus: in progress\nnote: !!str 'first\nnext: x'\n---\n",
+    anchorflow: '---\nstatus: in progress\ntags: &t [a,\nnext: b]\n---\n',
+    tagflow: '---\nstatus: in progress\nm: !!map {a: 1,\nnext: b}\n---\n',
+    quotedflow: '---\nstatus: in progress\ntags: [a, "b]\nnext: x"]\n---\n',
   }
   for (const [name, text] of Object.entries(cases)) put(path.join(dir, `${name}.md`), text)
   const store = createStore(dir, { ...FLAT, filter: { type: 'never' } })

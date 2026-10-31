@@ -7,7 +7,7 @@ A card is one Markdown note per project. The card stays the source of truth: the
 `cards.layout` in the config:
 
 - `folder` (default): `<projectsDir>/<name>/<name>.md`. The folder name and the file name must match.
-- `flat`: every `.md` note directly in `projectsDir` is a candidate, and the file name (without `.md`) is the project name. With `cards.recursive: true`, notes in subfolders count too; hidden folders, `node_modules` and links are skipped, and when two notes share a name, both are named by their path (`Clients/Acme/Notes`).
+- `flat`: every `.md` note directly in `projectsDir` is a candidate, and the file name (without `.md`) is the project name. With `cards.recursive: true`, notes in subfolders count too; hidden folders, `node_modules` and links are skipped, and when two notes share a name, both are named by their path (`Clients/Acme/Notes`); a note whose name equals such a path is then named by its own path too.
 
 `cards.filter` keeps only notes whose frontmatter matches, for example `{ "type": "client-project" }` or `{ "tags": "project" }`. Matching is case-insensitive, a list field (`tags: [project, client]` or a `- item` list) matches when it contains the value, and an array in the filter means any of its values. With a filter, a matching note without a stage counts as `development`. Without a filter, a note needs a `stage` (or a `project` field) to be shown.
 
