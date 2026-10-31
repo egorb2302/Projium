@@ -179,6 +179,10 @@ test('a quoted value that starts with a bracket or a brace does not lock the car
   assert.equal(readFields(out).source, '[[Call]] notes')
   assert.deepEqual(lockedFields(fm('aliases: [Bob\'s Shop, web]\nmeta: {owner: Bob\'s}\nsizes: [5" screen]')), [])
   assert.deepEqual(lockedFields(fm('note: >-\n  "quoted start\n  in folded\nlist:\n  - |\n    "open\n  - b')), [])
+  assert.deepEqual(lockedFields(fm('description: This is a long\n  "quoted" phrase continues\n  [WIP] continues\n  \'90s style')), [])
+  assert.deepEqual(lockedFields(fm('list:\n  - body: |\n      "open\n    other: fine\naliases: [&a Bob\'s, *a]\nnote: |2\n   text')), [])
+  assert.deepEqual(lockedFields(fm('Due date: 2026-10-01')), [])
+  assert.match(setField(fm('next_step: a\nDue date: 2026-10-01'), 'next_step', 'b'), /^next_step: b\nDue date: 2026-10-01$/m)
 })
 
 test('a seconds time goes into a plain text field quoted unless the old value was a plain seconds time', () => {

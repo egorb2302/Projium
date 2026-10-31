@@ -136,6 +136,11 @@ test('frontmatter with explicit or anchored keys, an indented first key or a val
     anchornext: '---\nstatus: in progress\nnote: &a\n  {a: 1,\nnext: b}\n---\n',
     nestedquote: '---\nstatus: in progress\nmeta:\n  owner: "first\nnext: x"\n---\n',
     spacedkey: '---\nstatus: in progress\nmy tags: [a,\nnext: b]\n---\n',
+    flowtag: '---\nstatus: in progress\ntags: [!!str "foo]\nnext: x"]\n---\n',
+    flowanchor: '---\nstatus: in progress\ntags: [a, &x "b]\nnext: x"]\n---\n',
+    itemblock: '---\nstatus: in progress\nlist:\n  - body: |\n      text\n    other: [a,\nnext: b]\n---\n',
+    itemblockquote: '---\nstatus: in progress\nlist:\n  - body: |\n      text\n    other: "first\nnext: x"\n---\n',
+    explicitnested: '---\nstatus: in progress\nmeta:\n  ? k\n  : "first\nnext: x"\n---\n',
   }
   for (const [name, text] of Object.entries(cases)) put(path.join(dir, `${name}.md`), text)
   const store = createStore(dir, { ...FLAT, filter: { type: 'never' } })
