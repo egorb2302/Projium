@@ -177,6 +177,8 @@ test('a quoted value that starts with a bracket or a brace does not lock the car
   const out = setField(card, 'next_step', 'ship')
   assert.match(out, /^next_step: "ship"$/m)
   assert.equal(readFields(out).source, '[[Call]] notes')
+  assert.deepEqual(lockedFields(fm('aliases: [Bob\'s Shop, web]\nmeta: {owner: Bob\'s}\nsizes: [5" screen]')), [])
+  assert.deepEqual(lockedFields(fm('note: >-\n  "quoted start\n  in folded\nlist:\n  - |\n    "open\n  - b')), [])
 })
 
 test('a seconds time goes into a plain text field quoted unless the old value was a plain seconds time', () => {
