@@ -255,7 +255,8 @@ select.sort:hover { color: var(--text); }
 .field { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 12px; align-items: center; padding: 2px 0; }
 .field .k { color: var(--muted); font-size: 13px; }
 .field .v { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 34px; height: auto; margin-left: -10px; padding: 6px 10px; text-align: left; white-space: normal; overflow-wrap: anywhere; background: transparent; border-color: transparent; color: var(--text); font-weight: 400; line-height: 1.45; cursor: text; }
-.field .v.date, .field .v.time { font: 12.5px var(--mono); }
+.field .v-date, .field .v-time { font: 12.5px var(--mono); }
+.ptable .nil { color: var(--dim); }
 .field .v::after { content: ""; flex: none; width: 13px; height: 13px; margin-left: auto; background: var(--muted); opacity: 0; transition: opacity 0.15s; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M10.5 2.5l3 3L6 13H3v-3z' fill='none' stroke='black' stroke-width='1.5' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M10.5 2.5l3 3L6 13H3v-3z' fill='none' stroke='black' stroke-width='1.5' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; }
 .field .v:hover { background: var(--panel-2); border-color: var(--line); }
 .field .v:hover::after, .field .v:focus-visible::after { opacity: 0.7; }

@@ -4,10 +4,10 @@ Versions follow [semantic versioning](https://semver.org); each one is a git tag
 
 ## 0.6.0 (2026-11-01)
 
-- The project list opens with **Needs attention**: projects with overdue or p1 tasks, tasks due within two days, or a live site that is down, most urgent first, each with its most urgent task.
+- The project list opens with **Needs attention**: projects with overdue tasks, tasks due within two days, p1 tasks or a down site while the project is in work, most urgent first, each with its most urgent task.
 - Search (press `/`, Escape clears), sorting (most urgent, newest, by name) and a dense table view next to the cards; the view and sort are remembered in the browser.
 - Cards are shorter and show signals (overdue, p1, due soon, site down, commits after the audit), open tasks, readiness and time to first push.
-- Project page: card fields are shown as values and turn into an input on click (Enter or leaving the field saves, Escape cancels); dates read `2026-10-20 17:29` instead of the browser's format. Tasks are sorted by overdue, priority and due date, with the priority and a coloured due date on the same line; done tasks fold under "Done (N)". The audit panel has a state badge and a readiness bar; prod flags are grouped by state.
+- Project page: card fields are shown as values and turn into an input on click (Enter or leaving the field saves, Escape cancels); dates read `2026-10-20 17:29` instead of the browser's format. A stage word Projium does not know can now be replaced from the dashboard. Tasks are sorted by overdue, priority and due date, with the priority and a coloured due date on the same line; done tasks fold under "Done (N)". The audit panel has a state badge and a readiness bar; prod flags are grouped by state.
 - Time page: projects without transcripts are listed in one line instead of a row each.
 
 ## 0.5.1 (2026-11-01)

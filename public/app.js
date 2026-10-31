@@ -1,4 +1,5 @@
 import { t, getLang, setLang, fmtDate } from './i18n.js'
+import { todayIn, taskState, sortTasks, topTask, signalData } from './logic.js'
 
 const app = document.getElementById('app')
 const toastEl = document.getElementById('toast')
@@ -106,55 +107,14 @@ const healthDot = p => {
 }
 const projectLink = p => h('a', { href: `#/p/${encodeURIComponent(p.name)}` }, p.name)
 
-const ZONE_RE = /^([+-])(\d\d):(\d\d)$/
-const todayIn = zone => {
-  const m = ZONE_RE.exec(zone ?? '')
-  const off = m ? (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) * 60e3 : -new Date().getTimezoneOffset() * 60e3
-  return new Date(Date.now() + off).toISOString().slice(0, 10)
-}
-const dayDiff = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5)
 const dayLabel = (d, year) => new Date(`${d}T00:00:00Z`).toLocaleDateString(t('locale'), { day: 'numeric', month: 'short', year: year ? 'numeric' : undefined, timeZone: 'UTC' })
-const PRIO = { p1: 0, p2: 1, p3: 2 }
-const taskState = (x, today) => (x.done || !x.due ? '' : x.due < today ? 'over' : dayDiff(today, x.due) <= 2 ? 'soon' : '')
-const taskRank = (x, today) => [x.done ? 1 : 0, taskState(x, today) === 'over' ? 0 : 1, PRIO[x.p] ?? 3, x.due || '9999']
-const sortTasks = (list, today) =>
-  [...list].sort((a, b) => {
-    const ra = taskRank(a, today)
-    const rb = taskRank(b, today)
-    const i = ra.findIndex((v, k) => v !== rb[k])
-    return i < 0 ? 0 : ra[i] < rb[i] ? -1 : 1
-  })
-
-const signals = p => {
-  if (p.ignored) return []
-  const today = todayIn(p.zone)
-  const open = p.tasks.filter(x => !x.done)
-  const live = p.fields.stage !== 'done'
-  const over = open.filter(x => taskState(x, today) === 'over').length
-  const soon = open.filter(x => taskState(x, today) === 'soon').length
-  const p1 = live ? open.filter(x => x.p === 'p1' && taskState(x, today) !== 'over').length : 0
-  const last = p.health?.last
-  const down = live && p.fields.site && last && !(last.code != null && last.code < 400)
-  const f = p.repoInfo?.freshness ?? {}
-  const behind = Math.max(f.sinceLocal ?? 0, f.sinceOrigin ?? 0)
-  const stale = live && f.state === 'changed-after' && (behind || f.dirty)
-  return [
-    down && { tone: 'bad', w: 100, text: t('sigDown') },
-    over && { tone: 'bad', w: 30 * over, text: t('sigOverdue', over) },
-    p1 && { tone: 'warn mono', w: 10 * p1, text: t('sigP1', p1) },
-    soon && { tone: 'warn', w: 8 * soon, text: t('sigSoon', soon) },
-    stale && { tone: 'off', w: 1, text: t('sigStale', behind) },
-  ].filter(Boolean)
-}
-const sigChips = list => (list?.length ? h('div', { class: 'sigs' }, list.map(s => h('span', { class: `pill ${s.tone}` }, s.text))) : null)
+const SIG_TEXT = { down: 'sigDown', over: 'sigOverdue', p1: 'sigP1', soon: 'sigSoon', stale: 'sigStale' }
+const signals = p => signalData(p).map(s => ({ ...s, text: t(SIG_TEXT[s.kind], s.n) }))
+const sigChips = list => (list?.length ? h('div', { class: 'sigs' }, list.map(s => h('span', { class: `pill ${s.tone}${s.kind === 'p1' ? ' mono' : ''}` }, s.text))) : null)
 const urgency = p => p.sig.reduce((a, s) => a + s.w, 0)
-const topTask = p => {
-  const today = todayIn(p.zone)
-  const x = sortTasks(p.tasks.filter(y => !y.done), today)[0]
-  return x && (taskState(x, today) || x.p === 'p1') ? x : null
-}
 const stat = (label, value) => h('span', {}, h('small', {}, label), h('b', { class: value == null ? 'nil' : '' }, value == null ? t('nil') : String(value)))
 const readyText = r => (r?.total ? `${r.proven ?? '?'}/${r.total}` : null)
+const nil = () => h('span', { class: 'nil' }, t('nil'))
 
 const pref = (k, d) => {
   try {
@@ -171,7 +131,7 @@ const setPref = (k, v) => {
 
 let filter = 'open'
 let query = ''
-let view = pref('projium-view', 'cards')
+let view = pref('projium-view', 'cards') === 'table' ? 'table' : 'cards'
 let sortBy = pref('projium-sort', 'urgent')
 let doneOpen = false
 let seq = 0
@@ -239,10 +199,10 @@ const listTable = shown => h('div', { class: 'panel flush' }, h('div', { class: 
       h('div', { class: 'clip', title: p.fields.next_step ?? '' }, rich(p.fields.next_step ?? '')),
       sigChips(p.sig),
       p.tasks.filter(x => !x.done).length,
-      readyText(p.repoInfo?.readiness) ?? '—',
-      p.health?.uptime24 != null ? `${p.health.uptime24}%` : '—',
-      d.push == null ? '—' : fmtH(d.push),
-      d.total == null ? '—' : fmtH(d.total),
+      readyText(p.repoInfo?.readiness) ?? nil(),
+      p.health?.uptime24 != null ? `${p.health.uptime24}%` : nil(),
+      d.push == null ? nil() : fmtH(d.push),
+      d.total == null ? nil() : fmtH(d.total),
     ]
     return h('tr', { onclick: e => e.target.closest('a') || (location.hash = pageLink(p)) }, cells.map((c, i) => h('td', { class: LIST_COLS[i] || null }, c)))
   })))))
@@ -260,7 +220,7 @@ const renderList = async n => {
     const shown = projects
       .filter(p => filter === 'all' || (filter === 'done' ? p.fields.stage === 'done' : p.fields.stage !== 'done'))
       .filter(p => !q || [p.name, p.fields.next_step, p.fields.status].some(v => String(v ?? '').toLowerCase().includes(q)))
-      .sort(SORTS[sortBy] ?? SORTS.urgent)
+      .sort(Object.hasOwn(SORTS, sortBy) ? SORTS[sortBy] : SORTS.urgent)
     count.textContent = t('countOf', shown.length, projects.length)
     body.replaceChildren(!shown.length ? h('p', { class: 'muted empty' }, t('noMatches')) : view === 'table' ? listTable(shown) : h('div', { class: 'grid' }, shown.map(card)))
   }
@@ -327,13 +287,16 @@ const fieldRow = (p, [key, kind], rerender) => {
   const value = p.fields[key] ?? ''
   const id = `f-${key}`
   const name = t('fields')[key]
+  const options = value && !STAGES.includes(value) ? [value, ...STAGES] : STAGES
   const input = kind === 'stage'
-    ? h('select', { 'aria-label': name }, STAGES.map(s => h('option', { value: s, selected: s === value }, stageName(s))))
+    ? h('select', { 'aria-label': name }, options.map(s => h('option', { value: s, selected: s === value }, stageName(s))))
     : h('input', { value, 'aria-label': name, type: kind === 'date' ? 'date' : kind === 'time' ? 'datetime-local' : 'text', lang: t('locale') })
+  const initial = input.value
   const shown = kind === 'stage' ? (value ? stageChip(value) : null) : fmtValue(kind, value)
+  const plain = kind === 'stage' ? (value ? stageName(value) : '') : fmtValue(kind, value) ?? ''
   const locked = p.locked?.includes(key)
-  const view = h('button', { type: 'button', class: `v ${kind}`, id, 'aria-label': t('editField', name), disabled: locked, title: locked ? t('locked') : null },
-    shown == null ? h('span', { class: 'nil' }, '—') : kind === 'text' ? rich(shown) : shown)
+  const view = h('button', { type: 'button', class: `v v-${kind}`, id, 'aria-label': t('editField', name, plain || t('nil')), disabled: locked, title: locked ? t('locked') : null },
+    shown == null ? nil() : kind === 'text' ? rich(shown) : shown)
   const owner = p.fieldKeys?.[key]
   const row = h('div', { class: 'field' }, h('span', { class: 'k', title: owner ? t('ownerKey', owner) : null }, name, owner ? h('span', { class: 'muted' }, ` · ${owner}`) : null), view)
   if (locked) return row
@@ -343,12 +306,16 @@ const fieldRow = (p, [key, kind], rerender) => {
     input.focus()
   })
   input.addEventListener('blur', () => {
-    if (input.value === expected && !row.querySelector('.conflict') && input.isConnected) row.replaceChild(view, input)
+    if (input.value !== initial || row.querySelector('.conflict') || input.parentNode !== row) return
+    input.classList.remove('err')
+    row.replaceChild(view, input)
   })
   input.addEventListener('keydown', e => {
-    if (e.key !== 'Escape') return
-    input.value = expected
+    if (e.key !== 'Escape' && !(e.key === 'Enter' && input.value === initial)) return
+    e.preventDefault()
+    input.value = initial
     input.blur()
+    if (view.isConnected) view.focus()
   })
   const save = async (val, exp) => {
     if (val === exp) return
@@ -553,7 +520,7 @@ const splitPanel = projects => {
   const label = k => t('split')[k]
   return h('section', { class: 'panel' }, h('h2', {}, t('whereTime')),
     h('div', { class: 'legend' }, SPLIT.map(([k, cls]) => h('span', {}, h('i', { class: cls }), label(k)))),
-    h('div', { class: 'table-wrap' }, h('table', {},
+    withData.length ? h('div', { class: 'table-wrap' }, h('table', {},
       h('thead', {}, h('tr', {}, h('th', {}, t('project')), h('th', {}, t('phase')), h('th', { class: 'split-col' }, ''), SPLIT.map(([k]) => h('th', { class: 'num' }, label(k))), h('th', { class: 'num' }, t('wallClock')))),
       h('tbody', {}, withData.flatMap(({ p, ph }) =>
         PHASES.filter(k => ph[k]).map((k, i) => {
@@ -570,7 +537,7 @@ const splitPanel = projects => {
             ...SPLIT.map(([key]) => (s[key] < 3 * 60e3 ? h('td', { class: 'num zero' }, '·') : h('td', { class: 'num' }, h1(s[key])))),
             h('td', { class: 'num' }, h1(s.total)))
           return tr
-        }))))),
+        }))))) : null,
     without.length ? h('p', { class: 'small nodata' }, t('noTranscriptsList'), without.flatMap((r, i) => [i ? ', ' : '', projectLink(r.p), r.p.timeSplit?.lost ? t('lostIn', r.p.timeSplit.lost) : ''])) : null,
     h('p', { class: 'muted small' }, t('splitNote')))
 }
