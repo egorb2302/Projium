@@ -233,7 +233,7 @@ const tempProjects = t => {
   return { projects, make }
 }
 
-test('a failing auto digest stops after three attempts a day, and the count survives a restart', async t => {
+test('a failing auto digest retries with growing waits, the wait survives a restart, and it stops after ten tries a day', async t => {
   const { make } = tempProjects(t)
   let now = at('2026-10-24T07:00:00Z')
   let calls = 0
@@ -244,20 +244,29 @@ test('a failing auto digest stops after three attempts a day, and the count surv
     now += 16 * 60e3
     await app.digestTick()
   })
+  assert.equal(calls, 2, 'the first retry comes after 15 minutes')
   app.db.close()
   app = make(opts)
   await quiet(async () => {
     await app.digestTick()
-    assert.equal(calls, 2, 'the 15-minute wait survives a restart')
     now += 16 * 60e3
     await app.digestTick()
+    assert.equal(calls, 2, 'the second wait is 30 minutes, also after a restart')
     now += 16 * 60e3
     await app.digestTick()
+    assert.equal(calls, 3)
+    now += 61 * 60e3
+    await app.digestTick()
+    assert.equal(calls, 4, 'then an hour')
+    for (let i = 0; i < 8; i++) {
+      now += 121 * 60e3
+      await app.digestTick()
+    }
   })
-  assert.equal(calls, 3)
+  assert.equal(calls, 10, 'then every two hours, ten tries a day at most')
   now = at('2026-10-25T07:00:00Z')
   await quiet(() => app.digestTick())
-  assert.equal(calls, 4, 'tries again the next day')
+  assert.equal(calls, 11, 'tries again the next day')
   app.db.close()
 })
 

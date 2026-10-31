@@ -224,7 +224,7 @@ export const createApp = ({
     const now = clock()
     if (!sendDigest || digestInFlight || !isDue(now, digestMinutes, lastDigest('auto')?.day, utcOffset)) return
     const failed = failuresOn(localDay(now, utcOffset))
-    if (failed.n >= 3 || (failed.last && now - failed.last < 15 * 60e3)) return
+    if (failed.n >= 10 || (failed.last && now - failed.last < 15 * 60e3 * 2 ** Math.min(failed.n - 1, 3))) return
     try {
       await deliverDigest('auto')
     } catch (e) {

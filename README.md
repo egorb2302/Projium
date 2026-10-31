@@ -96,7 +96,7 @@ TELEGRAM_BOT_TOKEN=123456:ABC...
 TELEGRAM_CHAT_ID=123456789
 ```
 
-The digest lists projects in progress, next steps, urgent tasks, sites that are down, stale audits and overdue tasks in closed projects. If the computer was asleep at the set time, it goes out within a minute of waking, for that day only. Preview it without sending at http://127.0.0.1:3210/api/digest.
+The digest lists projects in progress, next steps, urgent tasks, sites that are down, stale audits and overdue tasks in closed projects. If the computer was asleep at the set time, it goes out within a minute of waking, for that day only. If sending fails (no network, Telegram unreachable), it tries again after 15 minutes, 30 minutes, an hour, then every two hours, ten tries a day at most; each failure is logged by exit code (with `npm run start:bg`, in `data/server.err.log`). Preview it without sending at http://127.0.0.1:3210/api/digest.
 
 ## Privacy and safety
 
