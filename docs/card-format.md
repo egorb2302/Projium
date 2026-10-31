@@ -37,7 +37,7 @@ Run `npm run --silent survey` to see which keys, values, date formats and checkb
 
 ## Frontmatter
 
-Keep it flat: one `key: value` per line. Multi-line values, block scalars and duplicate keys are shown read-only, so edit them in Obsidian. Projium also parses the frontmatter as YAML: when it does not parse, or a key sits inside another value or is written in a form Projium does not read (an explicit `? key`, an anchored key, a quoted string or list that runs over the next key), the whole card is read-only. Every write is parsed again and refused unless the other keys read exactly as before.
+Keep it flat: one `key: value` per line. Multi-line values, block scalars and duplicate keys are shown read-only, so edit them in Obsidian. Projium also parses the frontmatter as YAML: when it does not parse, or a key sits inside another value or is written in a form Projium does not read (an explicit `? key`, an anchored key, a quoted string or list that runs over the next key), or a `---` line inside it is indented, the whole card is read-only. A number or `true`/`false` stays unquoted when replaced by another number or boolean. Every write is parsed again and refused unless the other keys read exactly as before.
 
 | Field | Value | What it drives |
 |---|---|---|

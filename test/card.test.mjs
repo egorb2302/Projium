@@ -204,6 +204,25 @@ test('the YAML check refuses a write that changes another key, breaks the YAML o
   assert.equal(writeKeepsYaml(before, write('2026-10-22'), 'next_step', '2026-10-22', true), true)
   assert.equal(writeKeepsYaml(before, write('2026-10-22 09:15:00'), 'next_step', '2026-10-22 09:15:00', true), true)
   assert.equal(writeKeepsYaml(before, write(''), 'next_step', ''), true)
+  assert.equal(writeKeepsYaml(fm('next_step: 0'), fm('next_step: 1'), 'next_step', '1'), true)
+  assert.equal(writeKeepsYaml(fm('next_step: x'), fm('next_step: 1'), 'next_step', '1'), false)
+})
+
+test('a number or boolean keeps its type when replaced by another one', () => {
+  assert.match(setField(fm('next_step: 0'), 'next_step', '1'), /^next_step: 1$/m)
+  assert.match(setField(fm('next_step: false'), 'next_step', 'true'), /^next_step: true$/m)
+  assert.match(setField(fm('next_step: 0'), 'next_step', 'call'), /^next_step: call$/m)
+  assert.match(setField(fm('next_step: false'), 'next_step', 'yes'), /^next_step: "yes"$/m)
+})
+
+test('the YAML check is fast and safe on alias trees and cycles', () => {
+  const levels = ['a0: &a0 [1, 1]', ...Array.from({ length: 11 }, (_, i) => `a${i + 1}: &a${i + 1} [*a${i}, *a${i}, *a${i}, *a${i}]`)]
+  const tree = fm(`next_step: call\n${levels.join('\n')}`)
+  const t0 = Date.now()
+  assert.equal(writeKeepsYaml(tree, tree.replace('next_step: call', 'next_step: ship'), 'next_step', 'ship'), true)
+  assert.ok(Date.now() - t0 < 500, `took ${Date.now() - t0} ms`)
+  const loop = fm('next_step: call\nloop: &l [1, *l]')
+  assert.equal(writeKeepsYaml(loop, loop.replace('next_step: call', 'next_step: ship'), 'next_step', 'ship'), true)
 })
 
 test('a date keeps the YAML type of the value it replaces', () => {

@@ -148,6 +148,7 @@ test('frontmatter with explicit or anchored keys, an indented first key or a val
     colonkey: '---\nstatus: in progress\nhttp://x: "first\nnext: x"\n---\n',
     aliaskey: '---\nstatus: in progress\nbase: &k key\n*k : "first\nnext: x"\n---\n',
     lonecr: '---\nstatus: in progress\nnext: a\rnote: b\n---\n',
+    indentedrule: '---\nstatus: in progress\nnote: |\n  intro\n  ---\n  more\nnext: call\n---\n',
   }
   for (const [name, text] of Object.entries(cases)) put(path.join(dir, `${name}.md`), text)
   const store = createStore(dir, { ...FLAT, filter: { type: 'never' } })
@@ -180,6 +181,19 @@ test('a task change that would touch the frontmatter is refused', t => {
   const expected = { done: false, text: 'inside', due: '', p: '' }
   assert.throws(() => store.saveTask('A', { op: 'toggle', id: 't-aaaa', expected }, fid(store, 'A')), /touch the frontmatter/)
   assert.equal(fs.readFileSync(file, 'utf8'), text)
+  const hidden = '---\nstage: fixes\nnote: |\n  ---\ntasks:\n## Tasks\n- [ ] inside ^t-cccc\n---\n'
+  put(file, hidden)
+  assert.throws(() => store.saveTask('A', { op: 'toggle', id: 't-cccc', expected }, fid(store, 'A')), /touch the frontmatter/)
+  assert.equal(fs.readFileSync(file, 'utf8'), hidden)
+})
+
+test('a numeric owner stage word stays a number', t => {
+  const dir = temp(t)
+  const file = path.join(dir, 'A.md')
+  put(file, '---\nstage: 1\n---\n')
+  const store = createStore(dir, { layout: 'flat', stages: { 1: 'development', 2: 'review' } })
+  store.saveField('A', 'stage', 'review', 'development', fid(store, 'A'))
+  assert.match(fs.readFileSync(file, 'utf8'), /^stage: 2$/m)
 })
 
 test('repo folders that normalize the same are not guessed, and Report is not a Repo line', t => {
