@@ -142,13 +142,14 @@ If doctor shows `server.legacy: true`, an older Projium (before `/api/meta`) hol
 
 Check: `npm run --silent doctor` shows `server.running: true`, and `GET <server.url>/api/projects` returns the cards. Open `server.url` for the owner. If the server is gone after your session ends (some agent harnesses kill every process they started), use autostart below or ask the owner to run `npm run start:bg` once.
 
-Autostart, only with the owner's yes: on Windows, a shortcut in `shell:startup` to `wscript.exe "<Projium>\autostart.vbs"` (runs hidden, logs in `data\`). On macOS or Linux, a launchd agent or a systemd user service that runs `node --no-warnings server.mjs` in the Projium folder.
+Autostart, only with the owner's yes: `npm run --silent autostart` prints the plan for this OS (a launchd agent, a systemd user service, or a Startup shortcut) and writes nothing. Run `npm run --silent stop` first, then write `file` with `content` (macOS, Linux; nothing to write on Windows), run the `enable` commands in order, run `check`, and confirm `npm run --silent doctor` shows `server.running: true`. Remove it with the `disable` commands. Details: [docs/autostart.md](docs/autostart.md).
 
 ## 7. Optional extras
 
 - **Daily digest:** Telegram (`TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env.local`) or any command (`digest.command` in the config; the text is appended as the last argument; list the environment variables it needs in `digest.env`, because `start:bg` passes the server a filtered environment). Preview at `<server.url>/api/digest` before turning it on.
 - **Readiness:** a `READINESS.md` next to a card with `audit_commit:` and `Ready: X of Y`. Projium shows whether the code changed after that commit.
 - **Time split:** automatic for repos built with Claude Code when `transcriptsDir` is right and the card has two milestone times (`spec_at` and `first_push_at`, or `first_push_at` and `mainnet_at`). The first transcript scan runs a few seconds after the server starts, so `timeSplit` is `null` right after `start:bg`.
+- **MCP tools for the owner's agents:** with the owner's yes (the tools can write into their notes), register `scripts/mcp.mjs` in their agent clients so any session can read and update projects. `node scripts/mcp.mjs --check` must print `ok: true` first (the server has to run) and gives the exact registration commands; details in [docs/mcp.md](docs/mcp.md). A new client session picks the server up.
 
 ## 8. Report to the owner
 
@@ -159,15 +160,15 @@ Tell them:
 - the `cards` mapping you chose, and that changing a stage or a mapped field in the dashboard writes into their own notes, in their own keys and words;
 - your judgment calls: field and stage mappings, assumed years, approximated times;
 - which projects have no repo;
-- how to stop it (`npm run --silent stop`) and remove it (delete the Projium folder, and the autostart entry if you added one).
+- how to stop it (`npm run --silent stop`) and remove it (delete the Projium folder; the autostart entry with its `disable` commands and the MCP registrations, if you added them).
 
 ## Working with Projium day to day
 
-- Once the owner has approved it, agents can edit cards directly as files; the dashboard re-reads them on every request. Keep the task line format and the card's existing line endings (a card mixing CRLF and LF cannot be written by the dashboard).
-- Or use the HTTP API ([docs/api.md](docs/api.md)), which refuses to overwrite a field or task that changed since you read it, and creates task ids for you.
+- Prefer the MCP tools ([docs/mcp.md](docs/mcp.md)) or the HTTP API ([docs/api.md](docs/api.md)): both refuse to overwrite a field or task that changed since you read it, check every write against the YAML, and create task ids for you. Read a project, then write with its `fileId` and the values as read.
+- Once the owner has approved it, agents can also edit cards directly as files; the dashboard re-reads them on every request. Keep the task line format and the card's existing line endings (a card mixing CRLF and LF cannot be written by the dashboard).
 
 ## Changing Projium's code
 
 - No npm dependencies: Node built-ins (`node:http`, `node:sqlite`, `node:test`) plus one vendored file, `lib/vendor/js-yaml.mjs` (js-yaml 4.1.1, MIT, kept for its YAML 1.1 timestamps), which checks every frontmatter write. Plain JS UI in `public/`.
-- `server.mjs`: HTTP server and background jobs. `lib/`: card parsing and writing (`card.mjs`, `store.mjs`), config (`config.mjs`), repo and audit checks (`repo.mjs`), site checks (`health.mjs`, `prod.mjs`, `net.mjs`), time split (`timesplit.mjs`), digest (`digest.mjs`), doctor, init and start/stop (`doctor.mjs`, `init.mjs`, `control.mjs`). `scripts/`: command entry points. `test/`: `node:test` suites.
+- `server.mjs`: HTTP server and background jobs. `lib/`: card parsing and writing (`card.mjs`, `store.mjs`), config (`config.mjs`), repo and audit checks (`repo.mjs`), site checks (`health.mjs`, `prod.mjs`, `net.mjs`), time split (`timesplit.mjs`), digest (`digest.mjs`), doctor, init and start/stop (`doctor.mjs`, `init.mjs`, `control.mjs`), MCP server (`mcp.mjs`, a client of the HTTP API). `scripts/`: command entry points. `test/`: `node:test` suites.
 - `npm test` must pass. No comments in code. Keep every guarantee in the README's "Privacy and safety" section.

@@ -29,7 +29,7 @@ npm run --silent doctor reports ok and the server is running. Ask me before you
 edit or create any notes, add a token or a site to check, or set up autostart.
 ```
 
-The agent reads [AGENTS.md](AGENTS.md): how to find your projects and map your notes to cards, `init` to write the config, `doctor` for a JSON check that says exactly what is missing, and `start:bg` / `stop` to run the server in the background. Afterwards your agents can read and update projects through the [local API](docs/api.md). We test it by giving fresh agents only this repo and a sample vault that was not written for Projium (one with a note per client in a flat folder and its own status words, one with a folder per project, mismatched note names and repos named in prose). In the latest runs both set it up through the config alone in a few minutes, with repos matched, and the vaults were left byte-for-byte unchanged.
+The agent reads [AGENTS.md](AGENTS.md): how to find your projects and map your notes to cards, `init` to write the config, `doctor` for a JSON check that says exactly what is missing, and `start:bg` / `stop` to run the server in the background. Afterwards your agents can read and update projects through an [MCP server](docs/mcp.md) (Claude Code, Codex, Claude Desktop, Cursor; `node scripts/mcp.mjs --check` prints the registration commands) or the [local API](docs/api.md). We test it by giving fresh agents only this repo and a sample vault that was not written for Projium (one with a note per client in a flat folder and its own status words, one with a folder per project, mismatched note names and repos named in prose). In the latest runs both set it up through the config alone in a few minutes, with repos matched, and the vaults were left byte-for-byte unchanged.
 
 ## Run it
 
@@ -117,7 +117,7 @@ npm test
 ## Limits
 
 - Built and used daily on Windows; macOS and Linux should work but are less tested.
-- Restart the server after pulling new code.
+- Restart the server after pulling new code; what changed is in [CHANGELOG.md](CHANGELOG.md).
 - One computer only: reach it from a phone through your own tunnel (for example Tailscale) if you need to.
 
 ## License
