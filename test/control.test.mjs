@@ -143,6 +143,37 @@ test('start:bg stops a server that never answers instead of leaving it behind', 
   assert.equal(alive(pid), false, 'no orphan server is left')
 })
 
+test('start:bg passes the server only the filtered environment', async t => {
+  const { dir, file } = await fakeInstall(t, "import fs from 'node:fs'\nfs.writeFileSync('env.json', JSON.stringify(Object.keys(process.env)))\nprocess.exit(3)\n")
+  const keep = process.env.OPENAI_API_KEY
+  process.env.OPENAI_API_KEY = 'sk-planted'
+  t.after(() => {
+    if (keep === undefined) delete process.env.OPENAI_API_KEY
+    else process.env.OPENAI_API_KEY = keep
+  })
+  const r = await startBackground(dir, { file, waitMs: 10000 })
+  assert.match(r.error, /exited \(code 3\)/)
+  const names = JSON.parse(fs.readFileSync(path.join(dir, 'env.json'), 'utf8')).map(k => k.toUpperCase())
+  assert.ok(names.includes('PATH'))
+  for (const k of ['OPENAI_API_KEY', 'PROJIUM_START', 'PROJIUM_LAUNCH', 'PROJIUM_CS', 'PSMODULEPATH']) assert.ok(!names.includes(k), `${k} must not reach the server`)
+})
+
+test('on Windows, start:bg starts the server as before when PowerShell cannot be started', { skip: process.platform !== 'win32' }, async t => {
+  const { dir, file } = await fakeInstall(t, 'process.exit(3)\n')
+  const root = path.join(dir, 'win')
+  fs.mkdirSync(path.join(root, 'System32', 'WindowsPowerShell', 'v1.0'), { recursive: true })
+  fs.writeFileSync(path.join(root, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), 'not a program')
+  const keep = process.env.SystemRoot
+  process.env.SystemRoot = root
+  let r
+  try {
+    r = await startBackground(dir, { file, waitMs: 10000 })
+  } finally {
+    process.env.SystemRoot = keep
+  }
+  assert.match(r.error, /^the server exited \(code \d+\)/)
+})
+
 const JOB = `Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
