@@ -106,6 +106,7 @@ The digest lists projects in progress, next steps, urgent tasks, sites that are 
 - Transcript parsing keeps timestamps and event kinds only. Message text is read in memory for three fixed checks and is never stored or returned; a test asserts a planted secret does not reach the API.
 - Images are served only from inside `projectsDir` (and the repo's own `public/og.*`); symlinks and junctions that lead outside are not followed. Git is read with `--no-optional-locks` and never fetched or written, except the opt-in `streak` repo.
 - Local state (uptime history, digest log) lives in `data/tracker.db`.
+- Writes into your notes are checked twice: line by line, and by parsing the frontmatter as YAML before and after. A write is refused unless every other key reads exactly as before and the field holds exactly the new value. Frontmatter that does not parse, or hides a key inside another value, makes the card read-only.
 
 ## Tests
 
@@ -121,4 +122,4 @@ npm test
 
 ## License
 
-MIT, see [LICENSE](LICENSE). Fonts in `public/fonts` are under the SIL Open Font License (texts included).
+MIT, see [LICENSE](LICENSE). Fonts in `public/fonts` are under the SIL Open Font License (texts included). `lib/vendor/js-yaml.mjs` is [js-yaml](https://github.com/nodeca/js-yaml) 4.1.1, MIT ([license](lib/vendor/js-yaml.LICENSE)).

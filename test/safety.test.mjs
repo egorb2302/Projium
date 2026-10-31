@@ -122,7 +122,6 @@ test('frontmatter with explicit or anchored keys, an indented first key or a val
     anchored: '---\nstatus: in progress\n&k next: call\n---\n',
     indented: '---\n  status: in progress\n  next: call\n---\n',
     flowmap: '---\nstatus: in progress\nmeta: {a: 1,\nnext: 2}\n---\n',
-    quoted: '---\nstatus: in progress\nnote: "first line\n  second"\n---\n',
     anchorquote: '---\nstatus: in progress\nnote: &n "first\nnext: x"\n---\n',
     tagquote: "---\nstatus: in progress\nnote: !!str 'first\nnext: x'\n---\n",
     anchorflow: '---\nstatus: in progress\ntags: &t [a,\nnext: b]\n---\n',
@@ -141,6 +140,14 @@ test('frontmatter with explicit or anchored keys, an indented first key or a val
     itemblock: '---\nstatus: in progress\nlist:\n  - body: |\n      text\n    other: [a,\nnext: b]\n---\n',
     itemblockquote: '---\nstatus: in progress\nlist:\n  - body: |\n      text\n    other: "first\nnext: x"\n---\n',
     explicitnested: '---\nstatus: in progress\nmeta:\n  ? k\n  : "first\nnext: x"\n---\n',
+    verbatimtag: '---\nstatus: in progress\ntags: !<tag:yaml.org,2002:seq> ["foo]\nnext: x"]\n---\n',
+    verbatimflow: '---\nstatus: in progress\ntags: [!<tag:yaml.org,2002:str> "foo]\nnext: x"]\n---\n',
+    oddanchor: '---\nstatus: in progress\ntags: [&a"b "foo]\nnext: x"]\n---\n',
+    namedtag: '---\nstatus: in progress\nnote: !e!x "first\nnext: x"\n---\n',
+    nesteddash: '---\nstatus: in progress\nx:\n- - a\n  - "first\nnext: x"\n---\n',
+    colonkey: '---\nstatus: in progress\nhttp://x: "first\nnext: x"\n---\n',
+    aliaskey: '---\nstatus: in progress\nbase: &k key\n*k : "first\nnext: x"\n---\n',
+    lonecr: '---\nstatus: in progress\nnext: a\rnote: b\n---\n',
   }
   for (const [name, text] of Object.entries(cases)) put(path.join(dir, `${name}.md`), text)
   const store = createStore(dir, { ...FLAT, filter: { type: 'never' } })
@@ -152,6 +159,27 @@ test('frontmatter with explicit or anchored keys, an indented first key or a val
     assert.equal(fs.readFileSync(path.join(dir, `${name}.md`), 'utf8'), cases[name], `${name} unchanged`)
   }
   assert.deepEqual(store.list(), [])
+})
+
+test('a valid quoted value over several lines stays as it is when another field is written', t => {
+  const dir = temp(t)
+  const file = path.join(dir, 'A.md')
+  put(file, '---\nstatus: in progress\nnote: "first line\n  second"\n---\n')
+  const store = createStore(dir, FLAT)
+  assert.deepEqual(store.load('A').locked.filter(k => k === 'next_step' || k === 'stage'), [])
+  store.saveField('A', 'next_step', 'call', '', fid(store, 'A'))
+  assert.equal(fs.readFileSync(file, 'utf8'), '---\nstatus: in progress\nnote: "first line\n  second"\nnext: "call"\n---\n')
+})
+
+test('a task change that would touch the frontmatter is refused', t => {
+  const dir = temp(t)
+  const file = path.join(dir, 'A.md')
+  const text = '---\nstage: fixes\n## Tasks\n- [ ] inside ^t-aaaa\n---\n\n## Tasks\n\n- [ ] real ^t-bbbb\n'
+  put(file, text)
+  const store = createStore(dir, { layout: 'flat' })
+  const expected = { done: false, text: 'inside', due: '', p: '' }
+  assert.throws(() => store.saveTask('A', { op: 'toggle', id: 't-aaaa', expected }, fid(store, 'A')), /touch the frontmatter/)
+  assert.equal(fs.readFileSync(file, 'utf8'), text)
 })
 
 test('repo folders that normalize the same are not guessed, and Report is not a Repo line', t => {

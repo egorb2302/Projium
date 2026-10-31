@@ -1,6 +1,6 @@
 # Projium
 
-> Local dashboard (Node 24, no dependencies, 127.0.0.1 only) over Markdown project notes, read in place in the owner's own layout, field names and status words (config `cards`, discovered with `npm run --silent survey`): stages, tasks, milestone times, readiness-audit freshness against git, site uptime, prod feature flags, and build time split from Claude Code transcripts (only timestamps and event kinds are kept; message text never leaves the parser). Agents install it with AGENTS.md, check it with `npm run --silent doctor` (JSON), run it with `npm run --silent start:bg` and use it through a local HTTP API.
+> Local dashboard (Node 24, no packages to install, 127.0.0.1 only) over Markdown project notes, read in place in the owner's own layout, field names and status words (config `cards`, discovered with `npm run --silent survey`): stages, tasks, milestone times, readiness-audit freshness against git, site uptime, prod feature flags, and build time split from Claude Code transcripts (only timestamps and event kinds are kept; message text never leaves the parser). Agents install it with AGENTS.md, check it with `npm run --silent doctor` (JSON), run it with `npm run --silent start:bg` and use it through a local HTTP API.
 
 ## Setup
 

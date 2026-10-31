@@ -2,7 +2,7 @@
 
 You are an AI agent and your owner asked you to install Projium and connect it to their project notes. This file is your playbook. Follow it in order; every step ends in a check you can run.
 
-Projium is a local dashboard (Node 24, no dependencies) over Markdown project cards: one card per project with a YAML frontmatter `stage`, optional tasks, milestone times, a repo, a live site. It runs on `127.0.0.1` only. Card format: [docs/card-format.md](docs/card-format.md). HTTP API: [docs/api.md](docs/api.md).
+Projium is a local dashboard (Node 24, no packages to install) over Markdown project cards: one card per project with a YAML frontmatter `stage`, optional tasks, milestone times, a repo, a live site. It runs on `127.0.0.1` only. Card format: [docs/card-format.md](docs/card-format.md). HTTP API: [docs/api.md](docs/api.md).
 
 All Projium commands print JSON. Run them as `npm run --silent <command>` (without `--silent`, npm prints a banner before the JSON).
 
@@ -168,6 +168,6 @@ Tell them:
 
 ## Changing Projium's code
 
-- No dependencies: Node built-ins only (`node:http`, `node:sqlite`, `node:test`). Plain JS UI in `public/`.
+- No npm dependencies: Node built-ins (`node:http`, `node:sqlite`, `node:test`) plus one vendored file, `lib/vendor/js-yaml.mjs` (js-yaml 4.1.1, MIT, kept for its YAML 1.1 timestamps), which checks every frontmatter write. Plain JS UI in `public/`.
 - `server.mjs`: HTTP server and background jobs. `lib/`: card parsing and writing (`card.mjs`, `store.mjs`), config (`config.mjs`), repo and audit checks (`repo.mjs`), site checks (`health.mjs`, `prod.mjs`, `net.mjs`), time split (`timesplit.mjs`), digest (`digest.mjs`), doctor, init and start/stop (`doctor.mjs`, `init.mjs`, `control.mjs`). `scripts/`: command entry points. `test/`: `node:test` suites.
 - `npm test` must pass. No comments in code. Keep every guarantee in the README's "Privacy and safety" section.

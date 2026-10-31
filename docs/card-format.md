@@ -30,14 +30,14 @@ Projium uses the field names below. When the owner's notes already have their ow
 - `name` (flat layout): `file` (default) names a project by its file name, `folder` by the folder the note sits in (for `Kestrel/kestrel-notes.md`), `title` by the note's first `#` heading.
 - `stages`: the owner's words → Projium stages, case-insensitive. Writing a stage from the dashboard keeps the owner's current word when it already means that stage, otherwise writes the first word listed for it, or the Projium stage when none is listed. Words that are not mapped are shown as they are, and the doctor names them.
 - Times: `2026-10-20 09:30`, `2026-10-20T09:30`, with seconds, and date-only `2026-10-20` (read as `00:00`) are all read. A write keeps the separator and the seconds the field already had; a date-only field stays date-only when the new time is `00:00` and becomes `YYYY-MM-DDTHH:MM` otherwise.
-- A plain unquoted value stays unquoted when the dashboard rewrites it, as long as it is plain text; anything else is written quoted. Keys written as `status : x`, `"status": x` or with a tab before the colon are read and rewritten in place as `status: x`. Values that use YAML anchors, aliases, tags or flow lists and maps (`&a`, `*a`, `!!str`, `[...]`, `{...}`) are read-only in the dashboard.
+- A plain unquoted value stays unquoted when the dashboard rewrites it, as long as it is plain text; anything else is written quoted. A date or a time with seconds is written unquoted only into a date or time field (unless its old value was quoted) or over an unquoted date or time, so YAML tools keep reading text as text. Keys written as `status : x`, `"status": x` or with a tab before the colon are read and rewritten in place as `status: x`. Values that use YAML anchors, aliases, tags or flow lists and maps (`&a`, `*a`, `!!str`, `[...]`, `{...}`) are read-only in the dashboard.
 - `sections`: the heading text (without `##`) of the tasks, updates and timeline sections.
 
 Run `npm run --silent survey` to see which keys, values, date formats and checkbox headings the notes actually use before writing the mapping.
 
 ## Frontmatter
 
-Keep it flat: one `key: value` per line. Multi-line values, block scalars and duplicate keys are shown read-only, so edit them in Obsidian.
+Keep it flat: one `key: value` per line. Multi-line values, block scalars and duplicate keys are shown read-only, so edit them in Obsidian. Projium also parses the frontmatter as YAML: when it does not parse, or a key sits inside another value or is written in a form Projium does not read (an explicit `? key`, an anchored key, a quoted string or list that runs over the next key), the whole card is read-only. Every write is parsed again and refused unless the other keys read exactly as before.
 
 | Field | Value | What it drives |
 |---|---|---|

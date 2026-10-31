@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { readFields, setField, readTasks, addTask, replaceTask, formatTask, validate, timelineRows, updateLines, lockedFields, toggleLine } from '../lib/card.mjs'
+import { readFields, setField, readTasks, addTask, replaceTask, formatTask, validate, timelineRows, updateLines, lockedFields, toggleLine, writeKeepsYaml } from '../lib/card.mjs'
 import { execFileSync } from 'node:child_process'
 import { auditedCommit, repoOf, ogImage, freshness } from '../lib/repo.mjs'
 import { createStore } from '../lib/store.mjs'
@@ -192,6 +192,18 @@ test('a seconds time goes into a plain text field quoted unless the old value wa
   assert.match(setField(fm('next_step: "2026-10-21 08:00:00"'), 'next_step', '2026-10-22 09:00:00'), /^next_step: "2026-10-22 09:00:00"$/m)
   assert.match(setField(fm('next_step: 2026-10-21 08:00:00.5'), 'next_step', '2026-10-22 09:00:00'), /^next_step: 2026-10-22 09:00:00$/m)
   assert.match(setField(fm('first_push_at: 2026-10-21T08:00:00.000Z'), 'first_push_at', '2026-10-22T09:00:00'), /^first_push_at: 2026-10-22T09:00:00$/m)
+})
+
+test('the YAML check refuses a write that changes another key, breaks the YAML or turns text into a date', () => {
+  const before = fm('next_step: call\nnote: "a\n  b"')
+  const write = v => before.replace('next_step: call', `next_step: ${v}`)
+  assert.equal(writeKeepsYaml(before, write('ship'), 'next_step', 'ship'), true)
+  assert.equal(writeKeepsYaml(before, before.replace('"a', '"z'), 'next_step', 'call'), false)
+  assert.equal(writeKeepsYaml(before, write('"ship'), 'next_step', 'ship'), false)
+  assert.equal(writeKeepsYaml(before, write('2026-10-22'), 'next_step', '2026-10-22'), false)
+  assert.equal(writeKeepsYaml(before, write('2026-10-22'), 'next_step', '2026-10-22', true), true)
+  assert.equal(writeKeepsYaml(before, write('2026-10-22 09:15:00'), 'next_step', '2026-10-22 09:15:00', true), true)
+  assert.equal(writeKeepsYaml(before, write(''), 'next_step', ''), true)
 })
 
 test('a date keeps the YAML type of the value it replaces', () => {
