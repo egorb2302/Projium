@@ -2,6 +2,10 @@
 
 Versions follow [semantic versioning](https://semver.org); each one is a git tag (`v0.4.0`). After pulling a new version, restart the server (`npm run --silent stop`, then `npm run --silent start:bg`, or log in again with autostart).
 
+## 0.5.1 (2026-11-01)
+
+- On Windows, `start:bg` starts the server outside the job object of the process that runs it, when that job allows it. Agent apps that keep each session's processes in a job and end them with the session (the Claude desktop app does) no longer take the dashboard down when the session is closed or deleted. A job that forbids leaving it still contains the server. This takes one `CreateProcess` call through Windows PowerShell; where PowerShell cannot run it, the server starts as before.
+
 ## 0.5.0 (2026-10-31)
 
 - Build time survives deleted transcripts. Deleting a session in the Claude app deletes its transcript (the app leaves a `<session>.desktop-released.json` marker); Projium now keeps the intervals it has read (start, end and kind, no text) in `data/tracker.db`, so the split stays after the transcript is gone and after a restart. `timeSplit.kept` counts such sessions, and `timeSplit.lost` counts sessions deleted before Projium read them; the dashboard shows that the split is incomplete.

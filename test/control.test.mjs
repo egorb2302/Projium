@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import http from 'node:http'
+import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { startBackground, stopServer, whoIsOn, serverEnv, openCommand } from '../lib/control.mjs'
 
@@ -140,6 +141,77 @@ test('start:bg stops a server that never answers instead of leaving it behind', 
   const pid = Number(fs.readFileSync(path.join(dir, 'pid.txt'), 'utf8'))
   for (let i = 0; i < 20 && alive(pid); i++) await new Promise(res => setTimeout(res, 100))
   assert.equal(alive(pid), false, 'no orphan server is left')
+})
+
+const JOB = `Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class TestJob {
+  [DllImport("kernel32.dll")] public static extern IntPtr CreateJobObjectW(IntPtr attributes, string name);
+  [DllImport("kernel32.dll")] public static extern bool SetInformationJobObject(IntPtr job, int infoClass, byte[] info, int length);
+  [DllImport("kernel32.dll")] public static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
+  [DllImport("kernel32.dll")] public static extern IntPtr GetCurrentProcess();
+}
+'@
+$job = [TestJob]::CreateJobObjectW([IntPtr]::Zero, $null)
+$limits = New-Object byte[] 144
+[BitConverter]::GetBytes([uint32]$env:JOB_FLAGS).CopyTo($limits, 16)
+if (-not [TestJob]::SetInformationJobObject($job, 9, $limits, 144) -or -not [TestJob]::AssignProcessToJobObject($job, [TestJob]::GetCurrentProcess())) { exit 2 }
+& $env:NODE_EXE --no-warnings $env:START_BG
+exit 0`
+
+const startInJob = (flags, env) =>
+  new Promise((resolve, reject) => {
+    let out = ''
+    const ps = spawn(path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(JOB, 'utf16le').toString('base64')], {
+      env: { ...process.env, ...env, JOB_FLAGS: String(flags), NODE_EXE: process.execPath, START_BG: path.join(repoRoot, 'scripts', 'start-bg.mjs') },
+      stdio: ['ignore', 'pipe', 'ignore'],
+      windowsHide: true,
+    })
+    ps.stdout.setEncoding('utf8').on('data', d => (out += d))
+    ps.on('error', reject)
+    ps.on('close', code => resolve({ code, out }))
+  })
+
+const jobInstall = async t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-job-'))
+  const projects = path.join(dir, 'projects')
+  fs.mkdirSync(path.join(projects, 'alpha'), { recursive: true })
+  fs.writeFileSync(path.join(projects, 'alpha', 'alpha.md'), '---\nstage: fixes\n---\n')
+  const port = await freePort()
+  const file = path.join(dir, 'tracker.config.json')
+  fs.writeFileSync(file, JSON.stringify({ projectsDir: projects, reposDir: dir, transcriptsDir: path.join(dir, 't'), dbFile: path.join(dir, 'data', 'db.sqlite'), port }))
+  const keepPort = process.env.PORT
+  process.env.PORT = String(port)
+  t.after(async () => {
+    await stopServer(repoRoot, { file })
+    if (keepPort === undefined) delete process.env.PORT
+    else process.env.PORT = keepPort
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 })
+  })
+  return { projects, port, env: { PORT: String(port), TRACKER_CONFIG: file } }
+}
+
+test('on Windows, start:bg leaves a job that allows breakaway, so the server outlives the agent session that started it', { skip: process.platform !== 'win32' }, async t => {
+  const { projects, port, env } = await jobInstall(t)
+  const r = await startInJob(0x2800, env)
+  assert.equal(r.code, 0, r.out)
+  assert.equal(JSON.parse(r.out).ok, true, r.out)
+  await new Promise(res => setTimeout(res, 1500))
+  assert.equal((await whoIsOn(port, projects)).sameInstance, true, 'the server survives the closed job')
+})
+
+test('on Windows, start:bg stays inside a job that forbids breakaway', { skip: process.platform !== 'win32' }, async t => {
+  const { projects, port, env } = await jobInstall(t)
+  const r = await startInJob(0x2000, env)
+  assert.equal(r.code, 0, r.out)
+  assert.equal(JSON.parse(r.out).ok, true, r.out)
+  let running = true
+  for (let i = 0; i < 25 && running; i++) {
+    await new Promise(res => setTimeout(res, 200))
+    running = (await whoIsOn(port, projects, 1000)).running
+  }
+  assert.equal(running, false, 'the job that started it still ends it')
 })
 
 test('--open uses the platform opener', () => {

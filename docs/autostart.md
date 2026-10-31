@@ -19,7 +19,7 @@ Start the dashboard server at login, so it is back after a restart. `npm run --s
 3. **Stop a running server** with `npm run --silent stop`. On macOS and Linux enabling starts the server at once, and a second one on the same port fails and is retried.
 4. **Apply.**
    - macOS, Linux: create the folder of `file` if it is missing, write `content` to `file` exactly as given (Write tool, no shell redirection), then run the `enable` commands in order.
-   - Windows: run the one `enable` command in PowerShell. The shortcut starts the server at the next login; run `npm run --silent start:bg` for now.
+   - Windows: run the one `enable` command in PowerShell. The shortcut starts the server at the next login. To start it now: `npm run --silent start:bg`, or `explorer.exe "<file>"`, which has Windows open the shortcut the way login does, outside your agent app (explorer returns at once; check with the doctor).
 5. **Verify.** Run the `check` command (macOS: the agent is listed and running; Linux: `Active: active (running)`; Windows: `True`), then `npm run --silent doctor` and look for `server.running: true`. If it fails, read the `logs` files and the error, fix the entry, and do not improvise a different mechanism.
 6. **Tell the owner** the `file` you created, the logs, how to stop the server for a session (`npm run --silent stop`; the entry starts it again at the next login) and how to remove it.
 
