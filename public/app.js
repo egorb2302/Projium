@@ -354,6 +354,7 @@ const writer = (p, what, rerender) => async body => {
   } catch (e) {
     toast(e.status === 409 ? t('reloaded', e.message) : e.message, true)
     if (e.status === 409) route()
+    else rerender(p)
   }
 }
 
@@ -362,7 +363,7 @@ const updateList = (p, rerender) => {
   const send = writer(p, 'update', rerender)
   return h('ul', { class: 'lines upd' }, p.updates.map(u => (u.item
     ? h('li', { class: `upd-item${u.done ? ' done' : ''}` },
-      h('input', { type: 'checkbox', checked: u.done, 'aria-label': t('doneLabel', u.text), onchange: () => send({ at: u.at, done: !u.done, expected: { text: u.text, done: u.done } }) }),
+      h('input', { type: 'checkbox', checked: u.done, 'aria-label': t('doneLabel', u.text), onchange: () => send({ at: u.at, done: !u.done, expected: { text: u.text, done: u.done, id: u.id } }) }),
       h('span', {}, rich(u.text)))
     : h('li', { class: 'upd-note muted small' }, rich(u.text)))))
 }
@@ -601,7 +602,7 @@ const trendChart = rows => (width, tips) => {
   const iw = width - m.l - m.r
   const ih = H - m.t - m.b
   const vals = rows.map(r => r.total)
-  const lo = TICKS_H.filter(x => x <= Math.min(...vals) / 1.2).at(-1) ?? 0.25
+  const lo = TICKS_H.filter(x => x <= Math.min(...vals) / 1.2).at(-1) ?? Math.min(...vals) / 1.2
   const hi = TICKS_H.find(x => x >= Math.max(...vals)) ?? Math.max(...vals)
   const y = v => m.t + ih - ((Math.log(v) - Math.log(lo)) / (Math.log(hi) - Math.log(lo))) * ih
   const xs = rows.map(r => r.at)
@@ -623,7 +624,7 @@ const trendChart = rows => (width, tips) => {
       sv('tspan', { class: 'lbl-v' }, fmtH(p.total)), ` ${p.p.name}`)
   }
   const line = pts.map((p, i) => `${i ? 'L' : 'M'}${p.cx.toFixed(1)},${p.cy.toFixed(1)}`).join('')
-  return sv('svg', { width, height: H, viewBox: `0 0 ${width} ${H}`, role: 'img', 'aria-label': t('trendAria', rows.length, fmtH(med)) },
+  return sv('svg', { width, height: H, viewBox: `0 0 ${width} ${H}`, role: 'group', 'aria-label': t('trendAria', rows.length, fmtH(med)) },
     sv('defs', {}, sv('linearGradient', { id: 'trend-wash', x1: 0, y1: 0, x2: 0, y2: 1 }, sv('stop', { offset: 0, class: 'wash-top' }), sv('stop', { offset: 1, class: 'wash-end' }))),
     TICKS_H.filter(v => v >= lo && v <= hi).map(v => [
       sv('line', { x1: m.l, x2: width - m.r, y1: y(v), y2: y(v), class: 'grid' }),
@@ -646,9 +647,11 @@ const trendChart = rows => (width, tips) => {
 const PHASE_KEYS = ['a', 'b', 'c']
 const phaseParts = d => {
   const a = d.design ?? 0
-  const b = Math.max(0, (d.push ?? 0) - a)
+  const b = d.push == null ? 0 : Math.max(0, d.push - a)
   const c = Math.max(0, d.mainnet ?? 0)
   const parts = [['a', a], ['b', b], ['c', c]].filter(([, v]) => v > 0)
+  const rest = d.total - parts.reduce((s, [, v]) => s + v, 0)
+  if (d.push == null && rest > 0) parts.push(['x', rest])
   return parts.length ? parts : [['x', d.total]]
 }
 
@@ -657,12 +660,12 @@ const phaseChart = rows => (width, tips) => {
   const track = width - (narrow ? 100 : 160) - (narrow ? 56 : 72) - 28
   return h('div', { class: `ph-rows${narrow ? ' narrow' : ''}` }, rows.map(({ p, d }) => {
     const parts = phaseParts(d)
-    const sum = parts.reduce((s, [, v]) => s + v, 0)
+    const sum = parts.reduce((s, [, v]) => s + v, 0) || 1
     return h('div', { class: 'ph-row' },
       projectLink(p),
       h('div', { class: 'ph-track' }, parts.map(([k, v]) => {
         const share = v / sum
-        const name = k === 'x' ? t('phases').total : k === 'b' && d.design == null ? t('legendB0') : t(`legend${k.toUpperCase()}`)
+        const name = k === 'b' && d.design == null ? t('legendB0') : t(`legend${k.toUpperCase()}`)
         return hoverable(
           h('span', { class: `ph ph-${k}`, style: `flex-grow:${share}`, tabindex: '0', 'aria-label': `${p.name}, ${name}: ${fmtH(v)}` },
             share * track >= 44 ? `${Math.round(share * 100)}%` : null),
@@ -694,7 +697,8 @@ const renderTime = async n => {
       : null,
     trend.length
       ? h('section', { class: 'panel' }, h('h2', {}, t('phasesTitle')),
-        h('div', { class: 'legend' }, PHASE_KEYS.map(k => h('span', {}, h('i', { class: `ph-${k}` }), t(`legend${k.toUpperCase()}`)))),
+        h('div', { class: 'legend' }, [...PHASE_KEYS, ...(trend.some(r => phaseParts(r.p.d).some(([k]) => k === 'x')) ? ['x'] : [])]
+          .map(k => h('span', {}, h('i', { class: `ph-${k}` }), t(`legend${k.toUpperCase()}`)))),
         chartBox('phase-chart', phaseChart([...trend].reverse().map(r => ({ p: r.p, d: r.p.d })))),
         untimed.length ? h('p', { class: 'small nodata' }, t('noTotalList'), untimed.flatMap((p, i) => [i ? ', ' : '', projectLink(p)])) : null)
       : null,

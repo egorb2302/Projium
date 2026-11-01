@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { readFields, setField, readTasks, addTask, replaceTask, formatTask, validate, timelineRows, updateLines, markUpdate, lockedFields, toggleLine, writeKeepsYaml } from '../lib/card.mjs'
+import { readFields, setField, readTasks, addTask, replaceTask, formatTask, parseTask, validate, timelineRows, updateLines, markUpdate, lockedFields, toggleLine, writeKeepsYaml } from '../lib/card.mjs'
 import { execFileSync } from 'node:child_process'
 import { auditedCommit, repoOf, ogImage, freshness } from '../lib/repo.mjs'
 import { createStore } from '../lib/store.mjs'
@@ -267,6 +267,15 @@ test('toggle flips only the checkbox; tasks without an id are found by position'
   assert.deepEqual(tasks.map(t => [t.id, t.at, t.text, t.p]), [['', 0, 'No id here', ''], ['t-bbbb', 1, 'Pay · later', ''], ['t-1uz', 2, 'Short id', 'p2']])
   assert.match(replaceTask(card, 0, cur => toggleLine(cur.line)).text, /^- \[x\] No id here$/m)
   assert.equal(replaceTask(card, 7, cur => cur.line), null)
+  const crlf = `${fm('x: 1')}\n## Tasks\n\n- [ ] One\n  - [ ] nested, not a task\n- [ ] Two\n\n## Updates\n\nNote\n  - indented\n- u1\n- [x] u2\n`.replace(/\n/g, '\r\n')
+  const toggled = replaceTask(crlf, 1, cur => toggleLine(cur.line)).text
+  assert.equal(toggled, crlf.replace('- [ ] Two', '- [x] Two'), 'CRLF kept, only the second task changed')
+  assert.equal(markUpdate(crlf, 1, () => false).text, crlf.replace('- [x] u2', '- [ ] u2'))
+  assert.throws(() => markUpdate(crlf.replace('Note\r\n', 'Note\n'), 0, () => true), /mixes line endings/)
+  const long = `- [ ] a${' '.repeat(50000)}b${' '.repeat(50000)}`
+  const t0 = performance.now()
+  assert.equal(parseTask(long).text.length, 50002)
+  assert.ok(performance.now() - t0 < 200, 'a long line parses in linear time')
   assert.throws(() => replaceTask(card.replace('^t-bbbb', '^t-bbbb\n- [ ] Again ^t-bbbb'), 't-bbbb', toggleLine), /appears twice/)
 })
 

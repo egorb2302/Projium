@@ -76,7 +76,7 @@ A task without an id is addressed by its position: send `"at": 3` instead of `id
 { "at": 0, "done": true, "expected": { "text": "u1 referral links", "done": false }, "fileId": "from the card" }
 ```
 
-The item at that position becomes `- [x] ` (or `- [ ] ` with `"done": false`); the rest of the line stays. A mismatch with `expected` returns `409`.
+The item at that position becomes `- [x] ` (or `- [ ] ` with `"done": false`); the rest of the line stays. `expected` may also carry the item's `id` as read. A mismatch with `expected` returns `409`.
 
 **Recheck now:** `POST /api/projects/<name>/refresh` with `{}` re-reads git, the live site and transcripts for that card.
 

@@ -151,6 +151,13 @@ test('tasks without an id are toggled and edited by position; update items are c
   assert.equal((await call('POST', '/api/projects/demo/update', { at: 1, done: false, expected: { text: 'u2 battles', done: true } })).status, 200)
   assert.match(fs.readFileSync(file, 'utf8'), /^- \[ \] u2 battles$/m)
   assert.equal((await call('POST', '/api/projects/demo/update', { at: 5, done: true, expected: { text: 'x', done: false } })).status, 409)
+
+  p = (await call('GET', '/api/projects/demo')).json
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('- [ ] Ship it', '- [ ] Added in Obsidian\n- [ ] Ship it').replace('- [x] u1 agent', '- u0 added in Obsidian\n- [x] u1 agent'))
+  const before = fs.readFileSync(file, 'utf8')
+  assert.equal((await call('POST', '/api/projects/demo/task', { op: 'toggle', at: 0, expected: p.tasks[0] })).status, 409, 'a task line added above shifts positions; expected catches it')
+  assert.equal((await call('POST', '/api/projects/demo/update', { at: 0, done: false, expected: { text: p.updates[1].text, done: true, id: 'u-1' } })).status, 409)
+  assert.equal(fs.readFileSync(file, 'utf8'), before)
 })
 
 test('rejects bad values, foreign hosts and origins, and paths outside the projects folder', async t => {
