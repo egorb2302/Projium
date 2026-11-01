@@ -20,6 +20,8 @@ Optional: a daily digest to Telegram (or any command you name), and **Launch Wat
 
 ![Project page](docs/screenshot-project.png)
 
+![Launch Watch](docs/screenshot-watch.png)
+
 ## Let your AI agent set it up
 
 Paste this to Claude Code, Codex or any agent that can run commands on your computer:
