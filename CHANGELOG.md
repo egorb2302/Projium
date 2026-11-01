@@ -2,6 +2,14 @@
 
 Versions follow [semantic versioning](https://semver.org); each one is a git tag (`v0.4.0`). After pulling a new version, restart the server (`npm run --silent stop`, then `npm run --silent start:bg`, or log in again with autostart).
 
+## 0.10.0 (2026-11-01)
+
+- **Client status pages** ([docs/share.md](docs/share.md)): a read-only page per project for a client or manager with the stage, progress (the readiness file, or the checked `## Updates` items), the updates with their checkmarks, uptime with a bar per day and the project's Launch Watch sites and heartbeats, and incidents of the last 90 days. Stage, progress, updates, uptime and incidents are on by default; status words, the next step and open tasks only when ticked. Paths, repo names, priorities, wallet balances and alert details never appear.
+- Each page is one self-contained HTML file (fonts inside, no scripts, no analytics, `noindex`) in `share/<name>-<random>/index.html` next to the config, with a `robots.txt`. You host the folder or send the file; Projium never uploads anything.
+- Turn a page on from the project page (**Client page**): choose what it shows, its title and language, **Export now**, **Preview**, **Stop sharing**. Or list projects under `share` in the config; `share.every` exports on a timer, `projium share` (or `npm run share`) from the command line. Sharing changes need no restart. A page you stop sharing is deleted at the next export; other files in the folder are left alone.
+- Settings has the export folder and the timer. API: `GET /api/share`, `POST /api/share/export`, `GET /share/<slug>`, share changes through `POST /api/settings`. Doctor lists shared projects and names the ones without a card.
+- The npm package lists its files, so `npx` installs no tests or screenshots.
+
 ## 0.9.0 (2026-11-01)
 
 - **Setup in 5 minutes:** `npx github:egorb2302/Projium` (or `npm run setup` in a clone) asks where the project notes are, offering the folders of your Obsidian vaults that hold notes with a status, and where you clone repos; reads the notes and proposes the mapping (layout, the status field, your status words as stages, the to-do heading, whether to check `site` URLs); writes the config, starts the dashboard in the background and opens it. Through npx the config and data live in `~/.projium`. The `projium` command also has `start`, `stop`, `restart` and `doctor`; `--notes`, `--repos`, `--port` and `--yes` set it up without questions.

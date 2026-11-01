@@ -111,6 +111,18 @@ Launch Watch ([watch.md](watch.md)): sites, heartbeats and wallet balances from 
 
 **Mute:** `POST /api/watch/mute` with `{ "target": "shop", "until": 1793540000000 }` (epoch ms, within 30 days) or `"until": null` to unmute. `404` for an unknown target, `400` for a time in the past or too far ahead.
 
+## Client pages
+
+[share.md](share.md) describes what a page shows.
+
+`GET /api/share` returns `{ enabled, hash, dir, every, lastExport, show, safe, projects }`: `show` lists every part a page can have, `safe` the default ones, `hash` is the settings hash to send with a change through `POST /api/settings`, and each project is `{ name, show, title, lang, slug, file, exported }` (`exported` is the page file's time, or `null`).
+
+`POST /api/share/export` with `{}` writes every shared page and returns `{ dir, written: [{ name, slug, file }], removed: [slugs], failed: [{ name, slug, error }] }`. A failed project keeps its previous page.
+
+`GET /share/<slug>` returns the page as it would be exported now, for a preview on this computer.
+
+Turn a page on, change it or turn it off with `POST /api/settings` and `"share": [{ "op": "set", "project": "Acme", "show": ["stage", "updates"], "title": "Acme shop", "lang": "en" }]` or `{ "op": "remove", "project": "Acme" }`. `set` keeps the page's slug, and gives it one with a random part the first time; `""` clears the title or language. `set.shareDir` and `set.shareEvery` change the folder and the timer. These changes need no restart.
+
 ## Settings
 
 The Settings page reads and writes the config file the server was started with.

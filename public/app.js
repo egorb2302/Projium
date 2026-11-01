@@ -550,7 +550,12 @@ const spark = hist => h('div', { class: 'spark', 'aria-hidden': 'true' },
 
 const renderProject = async (name, n) => {
   let p = await api(`/api/projects/${encodeURIComponent(name)}`)
+  let shareInfo = await api('/api/share').catch(() => null)
   if (n !== seq) return
+  const reshare = async () => {
+    shareInfo = await api('/api/share').catch(() => null)
+    if (n === seq) draw(p)
+  }
   const draw = (next, keepFocus) => {
     p = next
     const focusId = keepFocus ? `f-${keepFocus}` : null
@@ -607,7 +612,8 @@ const renderProject = async (name, n) => {
           h('section', { class: 'panel' }, h('h2', {}, t('timeline')),
             p.timeline.length ? h('div', { class: 'table-wrap' }, h('table', {},
               h('thead', {}, h('tr', {}, t('timelineCols').map(x => h('th', {}, x)))),
-              h('tbody', {}, p.timeline.map(row => h('tr', {}, row.slice(0, 4).map(c => h('td', {}, rich(c)))))))) : h('p', { class: 'muted small' }, t('noTimeline'))))))
+              h('tbody', {}, p.timeline.map(row => h('tr', {}, row.slice(0, 4).map(c => h('td', {}, rich(c)))))))) : h('p', { class: 'muted small' }, t('noTimeline'))),
+          sharePanel(p, shareInfo, reshare))))
     const focused = focusId ? document.getElementById(focusId) : null
     if (focused) {
       focused.focus()
@@ -1007,6 +1013,8 @@ const renderSettings = async n => {
     const port = inp(v.port, { type: 'number', min: '1', max: '65535', placeholder: String(e.port ?? 3210), class: 'narrow' })
     const token = inp('', { type: 'password', placeholder: s.telegram.set ? t('tgTokenSet') : '123456:ABC…', autocomplete: 'new-password' })
     const chat = inp('', { placeholder: s.telegram.set ? t('tgChatSet') : '123456789', class: 'mono' })
+    const shareDir = inp(v.shareDir, { placeholder: e.shareDir ?? t('setShareDirPh') })
+    const shareEvery = inp(v.shareEvery, { type: 'number', min: '0', max: '1440', placeholder: '0', class: 'narrow' })
     const cmd = inp(v.digestCommand ? JSON.stringify(v.digestCommand) : '', { class: 'mono', placeholder: '["node", "send.mjs", "--text"]' })
     const post = async (body, okText) => {
       try {
@@ -1027,6 +1035,8 @@ const renderSettings = async n => {
       diff('transcriptsDir', trans, v.transcriptsDir)
       diff('utcOffset', zone, v.utcOffset)
       diff('port', port, v.port)
+      diff('shareDir', shareDir, v.shareDir)
+      diff('shareEvery', shareEvery, v.shareEvery)
       if (at.value !== (v.digestAt || e.digestAt || '10:00')) set.digestAt = at.value
       if (lang.value !== (v.digestLang || e.digestLang || 'en')) set.digestLang = lang.value
       const cmdText = cmd.value.trim()
@@ -1079,6 +1089,10 @@ const renderSettings = async n => {
         control(t('tgChat'), chat, note(t('tgNote', s.envFile)),
           s.telegram.here ? h('button', { onclick: () => confirm(t('tgRemoveAsk')) && post({ telegram: null }) }, t('tgRemove')) : null),
         control(t('cmdLabel'), cmd, note(t('cmdNote')))),
+      h('section', { class: 'panel' }, h('h2', {}, t('setShare')),
+        control(t('setShareDir'), shareDir),
+        control(t('setShareEvery'), shareEvery, note(t('setShareEveryNote'))),
+        e.shared?.length ? h('p', { class: 'small' }, t('setShared'), e.shared.flatMap((x, i) => [i ? ', ' : '', h('a', { href: `#/p/${encodeURIComponent(x)}` }, x)])) : note(t('setShareNone'))),
       h('div', { class: 'save-bar' }, h('button', { class: 'primary', onclick: save }, t('saveSettings')), h('span', { class: 'muted small' }, t('backupNote', s.file))),
       h('section', { class: 'panel' }, h('h2', {}, t('setWatch')),
         s.watch.length ? h('div', { class: 'trows' }, s.watch.map(targetRow)) : h('p', { class: 'muted small' }, t('watchEmpty')),
@@ -1087,6 +1101,58 @@ const renderSettings = async n => {
     if (saved) window.scrollTo({ top: 0 })
   }
   draw(first)
+}
+
+const SHARE_SENSITIVE = ['status', 'next_step', 'tasks']
+
+const sharePanel = (p, info, redraw) => {
+  if (!info?.enabled) return null
+  const own = info.projects.find(x => x.name === p.name)
+  const box = h('section', { class: 'panel share' })
+  const head = h('h2', { class: 'row' }, h('span', {}, t('sharePanel')), h('span', { class: `pill ${own ? 'ok' : 'off'}` }, own ? t('shareOn') : t('shareOff')))
+  const post = async (op, okText) => {
+    try {
+      await api('/api/settings', { hash: info.hash, share: [op] })
+      toast(okText)
+      redraw()
+    } catch (e) {
+      toast(e.message, true)
+      if (e.status === 409) redraw()
+    }
+  }
+  if (!own) {
+    box.append(head, h('p', { class: 'muted small' }, t('shareIntro')),
+      h('button', { class: 'primary', onclick: () => post({ op: 'set', project: p.name, show: info.safe }, t('shareEnabled')) }, t('shareEnable')))
+    return box
+  }
+  const boxes = info.show.map(k => h('input', { type: 'checkbox', value: k, checked: own.show.includes(k) }))
+  const title = h('input', { value: own.title ?? '', placeholder: p.name, maxlength: 80, 'aria-label': t('shareTitle') })
+  const lang = h('select', { class: 'narrow', 'aria-label': t('shareLang') }, ['', 'en', 'ru'].map(l => h('option', { value: l, selected: (own.lang ?? '') === l }, l ? (l === 'ru' ? 'Русский' : 'English') : t('shareLangDefault'))))
+  const save = () => post({ op: 'set', project: p.name, show: boxes.filter(b => b.checked).map(b => b.value), title: title.value.trim(), lang: lang.value }, t('shareSaved'))
+  const exportNow = async e => {
+    const b = e.currentTarget
+    b.disabled = true
+    try {
+      const r = await api('/api/share/export', {})
+      toast(r.failed.length ? t('shareFailed', r.failed[0].name, r.failed[0].error) : t('shareExported', r.written.length), r.failed.length > 0)
+      redraw()
+    } catch (err) {
+      toast(err.message, true)
+      b.disabled = false
+    }
+  }
+  box.append(head,
+    h('div', { class: 'share-list' }, info.show.map((k, i) => h('label', { class: `repo-row${SHARE_SENSITIVE.includes(k) ? ' warn' : ''}` }, boxes[i], h('span', {}, t('shareKeys')[k]), SHARE_SENSITIVE.includes(k) ? h('span', { class: 'muted small' }, t('shareInternal')) : null))),
+    control(t('shareTitle'), title),
+    control(t('shareLang'), lang),
+    h('div', { class: 'row-btns' },
+      h('button', { class: 'primary', onclick: save }, t('save')),
+      h('button', { onclick: exportNow }, t('shareExport')),
+      h('a', { class: 'btn', href: `/share/${encodeURIComponent(own.slug)}`, target: '_blank', rel: 'noopener' }, t('sharePreview')),
+      h('button', { onclick: () => confirm(t('shareStopAsk')) && post({ op: 'remove', project: p.name }, t('shareStopped')) }, t('shareStop'))),
+    h('p', { class: 'muted small' }, own.exported ? t('shareFile', own.file, fmtDate(own.exported)) : t('shareNotYet', own.file)),
+    h('p', { class: 'muted small' }, t('shareHost')))
+  return box
 }
 
 const NAV = { list: 'navProjects', time: 'navTime', watch: 'navWatch', settings: 'navSettings' }

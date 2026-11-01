@@ -1,15 +1,17 @@
 {
   "name": "projium",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Local dashboard over Markdown project cards: stages, tasks, audits, uptime and build time from Claude Code transcripts",
   "license": "MIT",
   "private": true,
   "type": "module",
   "engines": { "node": ">=24" },
   "bin": { "projium": "bin/projium.mjs" },
+  "files": ["bin", "lib", "public", "scripts", "demo", "docs/*.md", "assets", "server.mjs", "autostart.vbs", "start-tracker.cmd", "tracker.config.example.json", "tracker.config.schema.json", "AGENTS.md", "CHANGELOG.md", "llms.txt"],
   "scripts": {
     "start": "node --no-warnings server.mjs",
     "setup": "node --no-warnings bin/projium.mjs setup",
+    "share": "node --no-warnings bin/projium.mjs share",
     "start:bg": "node --no-warnings scripts/start-bg.mjs",
     "stop": "node --no-warnings scripts/stop.mjs",
     "doctor": "node --no-warnings scripts/doctor.mjs",

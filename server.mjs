@@ -13,7 +13,8 @@ import { createWatch } from './lib/watch.mjs'
 import { request } from './lib/net.mjs'
 import { createStreak } from './lib/streak.mjs'
 import { loadConfig, ignoreTest, formatOffset, instanceId, configPath } from './lib/config.mjs'
-import { settingsView, applySettings, settingsHash } from './lib/settings.mjs'
+import { settingsView, applySettings, settingsHash, restartKey } from './lib/settings.mjs'
+import { pageData, renderPage, writePages, CSP, SHOW, SAFE } from './lib/share.mjs'
 import { writeRun, clearRun, runFile } from './lib/control.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -69,8 +70,9 @@ export const createApp = ({
   watchGet = request,
   onShutdown = null,
   configFile = null,
+  share: shareOpt = null,
 } = {}) => {
-  const startHash = configFile ? settingsHash(configFile) : null
+  const startKey = configFile ? restartKey(configFile) : null
   const digestMinutes = parseAt(digestAt)
   if (digestMinutes == null) throw new Error(`digest time must be HH:MM, got ${digestAt}`)
   const ignored = ignoreTest(ignore)
@@ -108,6 +110,42 @@ export const createApp = ({
     lang: watchLang ?? digestLang,
     link: e => `http://127.0.0.1:${bound}/#/${e.project && store.list().some(c => c.name === e.project) ? `p/${encodeURIComponent(e.project)}` : 'watch'}`,
   })
+
+  const shareSettings = () => (configFile ? loadConfig(here, configFile).share : shareOpt)
+  let lastShare = null
+  const sharePage = async (p, now = clock()) => {
+    const v = await view(store.load(p.name), true)
+    const health = db.prepare('select ts, code from health where project = ? and ts >= ? order by ts').all(p.name, now - 30 * 864e5)
+    const incidents = db.prepare('select signal, opened_at, closed_at from watch_incidents where project = ? and opened_at >= ? order by opened_at desc limit 30').all(p.name, now - 90 * 864e5).map(r => ({ signal: r.signal, openedAt: r.opened_at, closedAt: r.closed_at }))
+    return renderPage(pageData({ card: v, show: p.show, title: p.title, lang: p.lang ?? digestLang, now, health, incidents }))
+  }
+  let shareBusy = null
+  const exportShare = () =>
+    (shareBusy ??= (async () => {
+      const s = shareSettings()
+      if (!s) return { dir: null, written: [], removed: [], failed: [] }
+      const pages = []
+      const failed = []
+      for (const p of s.projects)
+        try {
+          pages.push({ name: p.name, slug: p.slug, html: await sharePage(p) })
+        } catch (e) {
+          failed.push({ name: p.name, slug: p.slug, error: publicError(e) })
+        }
+      const r = writePages(s.dir, pages, failed.map(f => f.slug))
+      lastShare = clock()
+      return { dir: s.dir, ...r, failed }
+    })().finally(() => (shareBusy = null)))
+  const shareTick = async () => {
+    let s
+    try {
+      s = shareSettings()
+    } catch {
+      return
+    }
+    if (!s?.every || !s.projects.length || (lastShare != null && clock() - lastShare < s.every * 60e3)) return
+    await exportShare().catch(e => console.error(new Date().toISOString(), 'share export failed', String(e?.message ?? e).slice(0, 200)))
+  }
 
   const isIgnored = card => ignored(card.name) || [repoOf(reposRoot, card.name, card.text, undefined, card.repoHint), ...declaredRepos(reposRoot, card.name, card.text, card.repoHint)].some(p => p && ignored(p))
 
@@ -369,11 +407,33 @@ export const createApp = ({
       }
       if (parts[0] === 'api' && parts[1] === 'settings' && parts.length === 2) {
         if (!configFile) return send(res, 404, { error: 'settings are not available in this run' })
-        if (req.method === 'GET') return send(res, 200, settingsView(here, configFile, startHash))
+        if (req.method === 'GET') return send(res, 200, settingsView(here, configFile, startKey))
         if (req.method === 'POST') {
-          const r = applySettings(here, configFile, await readBody(req))
-          return send(res, 200, { ...settingsView(here, configFile, startHash), backup: r.backup })
+          const r = applySettings(here, configFile, await readBody(req), { names: store.list().filter(c => !c.error).map(c => c.name) })
+          return send(res, 200, { ...settingsView(here, configFile, startKey), backup: r.backup })
         }
+      }
+      if (parts[0] === 'api' && parts[1] === 'share' && req.method === 'GET' && parts.length === 2) {
+        const s = shareSettings()
+        const fileOf = p => path.join(s.dir, p.slug, 'index.html')
+        const at = p => {
+          try {
+            return fs.statSync(fileOf(p)).mtimeMs
+          } catch {
+            return null
+          }
+        }
+        return send(res, 200, { enabled: Boolean(configFile || shareOpt), hash: configFile ? settingsHash(configFile) : null, dir: s?.dir ?? null, every: s?.every ?? 0, lastExport: lastShare, show: SHOW, safe: SAFE, projects: (s?.projects ?? []).map(p => ({ ...p, file: fileOf(p), exported: at(p) })) })
+      }
+      if (parts[0] === 'api' && parts[1] === 'share' && parts[2] === 'export' && req.method === 'POST' && parts.length === 3) {
+        await readBody(req)
+        return send(res, 200, await exportShare())
+      }
+      if (parts[0] === 'share' && parts.length === 2 && req.method === 'GET') {
+        const p = shareSettings()?.projects.find(x => x.slug === parts[1])
+        if (!p) return send(res, 404, { error: 'no shared page with that name' })
+        res.writeHead(200, { ...SECURITY, 'content-security-policy': CSP, 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
+        return res.end(await sharePage(p))
       }
       if (parts[0] === 'api' && parts[1] === 'repos' && req.method === 'GET' && parts.length === 2)
         return send(res, 200, { layout: cards.layout ?? 'folder', repos: uncardedRepos(reposRoot, store.list().filter(c => !c.error), ignored) })
@@ -469,6 +529,7 @@ export const createApp = ({
           digestTimer = setInterval(() => {
             digestTick().catch(() => {})
             streak?.tick().catch(() => {})
+            shareTick().catch(() => {})
           }, 60e3)
           setTimeout(() => timeTick().catch(() => {}), 5e3).unref()
           timeTimer = setInterval(() => timeTick().catch(() => {}), 60 * 60e3)
@@ -492,7 +553,7 @@ export const createApp = ({
         resolve()
       })
     })
-  return { start, stop, store, db, digestTick, healthTick, timeTick, watchTick: () => watcher.tick(), watcher }
+  return { start, stop, store, db, digestTick, healthTick, timeTick, watchTick: () => watcher.tick(), watcher, shareTick, exportShare }
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

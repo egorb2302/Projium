@@ -95,6 +95,29 @@
         }
       }
     },
+    "share": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Client status pages: a read-only HTML page per listed project, written to dir. See docs/share.md.",
+      "properties": {
+        "dir": { "type": "string", "default": "share", "description": "Folder the pages are written to, as <dir>/<slug>/index.html. Relative to the config file." },
+        "every": { "type": "number", "minimum": 0, "maximum": 1440, "default": 0, "description": "Minutes between automatic exports; 0 exports only on demand." },
+        "projects": {
+          "type": "object",
+          "description": "Card name -> what its page shows.",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "show": { "type": "array", "items": { "enum": ["stage", "progress", "updates", "uptime", "incidents", "status", "next_step", "tasks"] }, "default": ["stage", "progress", "updates", "uptime", "incidents"], "description": "status, next_step and tasks usually hold internal notes; they are off unless listed." },
+              "title": { "type": "string", "maxLength": 80, "description": "Title on the page instead of the card name." },
+              "lang": { "enum": ["en", "ru"], "description": "Page language; defaults to digest.lang." },
+              "slug": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$", "description": "Folder name of the page; the dashboard picks one with a random part." }
+            }
+          }
+        }
+      }
+    },
     "streak": {
       "type": "object",
       "additionalProperties": false,

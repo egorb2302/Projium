@@ -549,6 +549,14 @@ input.mono { font-family: var(--mono); font-size: 12.5px; }
 .tform { padding: 4px 0; }
 .tform .row-btns { margin: 8px 0 4px; }
 
+.share-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 0 16px; margin: -4px 0 6px; }
+.share-list .repo-row { flex-wrap: wrap; row-gap: 0; }
+.share-list .repo-row .small { flex-basis: 100%; margin: -2px 0 0 26px; }
+.share .row-btns { margin: 10px 0 12px; }
+a.btn { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border: 1px solid var(--line-2); border-radius: var(--r-s); background: var(--bg-2); font-size: 13px; font-weight: 500; color: var(--text); }
+a.btn:hover { background: var(--hover); border-color: #3d3d3d; color: var(--text); }
+.share p + p { margin-top: 6px; }
+
 button.loading { color: var(--muted); cursor: progress; }
 button.loading::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 8px; vertical-align: -1px; border: 2px solid var(--line-2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }

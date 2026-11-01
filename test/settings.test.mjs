@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import http from 'node:http'
-import { settingsView, applySettings, settingsHash, envFileOf } from '../lib/settings.mjs'
+import { settingsView, applySettings, settingsHash, envFileOf, restartKey } from '../lib/settings.mjs'
 import { saveConfig } from '../lib/init.mjs'
 import { loadConfig } from '../lib/config.mjs'
 import { Conflict } from '../lib/store.mjs'
@@ -58,7 +58,7 @@ const fixture = (t, extra = {}, manual = false) => {
 test('the settings view shows what the file says, where folders resolve, and hides RPC URLs and tokens', t => {
   const { here, file } = fixture(t)
   fs.writeFileSync(envFileOf(file), `PORT=4000\nTELEGRAM_BOT_TOKEN=${TOKEN}\nTELEGRAM_CHAT_ID=42\n`)
-  const v = settingsView(here, file, settingsHash(file))
+  const v = settingsView(here, file, restartKey(file))
   assert.equal(v.values.projectsDir, '../notes')
   assert.equal(v.effective.projectsDir.path, path.join(here, 'notes'))
   assert.equal(v.effective.projectsDir.state, 'ok')
