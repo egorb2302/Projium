@@ -228,7 +228,7 @@ test('the projium command sets up from flags without questions and explains its 
   assert.equal(c.port, 3298)
   assert.equal(c.cards.fields.site, null)
   assert.match(r.out, /Projium shows 3 project\(s\)/)
-  assert.match(r.out, /Start it with: node bin\/projium\.mjs start/)
+  assert.ok(r.out.includes(`Start it with: node bin/projium.mjs start --config "${file}"`), r.out)
   assert.doesNotMatch(r.out, /Port 3210 is taken/)
   const help = await cli(['--help', '--config', file])
   assert.equal(help.code, 0)

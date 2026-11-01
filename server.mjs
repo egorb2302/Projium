@@ -136,11 +136,12 @@ export const createApp = ({
     return { dir: s.dir, written: r.written, removed: r.removed, failed: [...failed, ...r.skipped] }
   }
   let shareQueue = Promise.resolve()
-  const exportShare = () => {
-    const next = shareQueue.catch(() => {}).then(runExport)
+  const queued = job => {
+    const next = shareQueue.catch(() => {}).then(job)
     shareQueue = next
     return next
   }
+  const exportShare = () => queued(runExport)
   const clearShareDir = dir => {
     const manifest = shareManifest(dir)
     if (exportedSlugs(manifest).length) writePages(dir, [], { manifest })
@@ -426,17 +427,22 @@ export const createApp = ({
               oldDir = shareSettings()?.dir ?? null
             } catch {}
           const r = applySettings(here, configFile, body, { names: store.list().filter(c => !c.error).map(c => c.name) })
+          let share
           if (touchesShare)
             try {
               const s = shareSettings()
               const same = (a, b) => (process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b)
               const moved = oldDir && s && !same(path.resolve(oldDir), path.resolve(s.dir)) && exportedSlugs(shareManifest(oldDir)).length > 0
-              if (moved) clearShareDir(oldDir)
-              if (s && (moved || exportedSlugs(shareManifest(s.dir)).length)) await exportShare()
+              if (moved) await queued(() => clearShareDir(oldDir))
+              if (s && (moved || exportedSlugs(shareManifest(s.dir)).length)) {
+                const x = await exportShare()
+                share = { removed: x.removed, failed: x.failed }
+              }
             } catch (e) {
               console.error(new Date().toISOString(), 'share export failed', String(e?.message ?? e).slice(0, 200))
+              share = { error: publicError(e) }
             }
-          return send(res, 200, { ...settingsView(here, configFile, startKey), backup: r.backup })
+          return send(res, 200, { ...settingsView(here, configFile, startKey), backup: r.backup, share })
         }
       }
       if (parts[0] === 'api' && parts[1] === 'share' && req.method === 'GET' && parts.length === 2) {
@@ -579,7 +585,7 @@ export const createApp = ({
         resolve()
       })
     })
-  return { start, stop, store, db, digestTick, healthTick, timeTick, watchTick: () => watcher.tick(), watcher, shareTick, exportShare }
+  return { start, stop, store, db, digestTick, healthTick, timeTick, watchTick: () => watcher.tick(), watcher, shareTick, exportShare, queueShare: queued }
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

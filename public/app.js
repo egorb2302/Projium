@@ -1113,9 +1113,10 @@ const sharePanel = (p, info, redraw) => {
   const head = h('h2', { class: 'row' }, h('span', {}, t('sharePanel')), h('span', { class: `pill ${own ? 'ok' : 'off'}` }, own ? t('shareOn') : t('shareOff')))
   const post = async (op, okText) => {
     try {
-      await api('/api/settings', { hash: info.hash, share: [op] })
+      const r = await api('/api/settings', { hash: info.hash, share: [op] })
       shareDrafts.delete(p.name)
-      toast(okText)
+      const bad = r.share?.error ?? (r.share?.failed?.length ? `${r.share.failed[0].name}: ${r.share.failed[0].error}` : null)
+      toast(bad ? t('shareNotWritten', bad) : okText, Boolean(bad))
       redraw()
     } catch (e) {
       toast(e.message, true)
@@ -1128,7 +1129,20 @@ const sharePanel = (p, info, redraw) => {
     return box
   }
   const draft = shareDrafts.get(p.name) ?? { show: own.show, title: own.title ?? '', lang: own.lang ?? '' }
-  const keep = () => shareDrafts.set(p.name, { show: boxes.filter(b => b.checked).map(b => b.value), title: title.value, lang: lang.value })
+  const saved = d => [...d.show].sort().join() === [...own.show].sort().join() && d.title.trim() === (own.title ?? '') && d.lang === (own.lang ?? '')
+  const unsaved = h('p', { class: 'small warn-line', role: 'status' }, t('shareUnsaved'))
+  const exportBtn = h('button', { onclick: e => exportNow(e) }, t('shareExport'))
+  const sync = () => {
+    const dirty = shareDrafts.has(p.name)
+    unsaved.hidden = !dirty
+    exportBtn.disabled = dirty
+  }
+  const keep = () => {
+    const d = { show: boxes.filter(b => b.checked).map(b => b.value), title: title.value, lang: lang.value }
+    if (saved(d)) shareDrafts.delete(p.name)
+    else shareDrafts.set(p.name, d)
+    sync()
+  }
   const boxes = info.show.map(k => h('input', { type: 'checkbox', value: k, checked: draft.show.includes(k), onchange: () => keep() }))
   const title = h('input', { value: draft.title, placeholder: p.name, maxlength: 80, 'aria-label': t('shareTitle'), oninput: () => keep() })
   const lang = h('select', { class: 'narrow', 'aria-label': t('shareLang'), onchange: () => keep() }, ['', 'en', 'ru'].map(l => h('option', { value: l, selected: draft.lang === l }, l ? (l === 'ru' ? 'Русский' : 'English') : t('shareLangDefault'))))
@@ -1151,11 +1165,13 @@ const sharePanel = (p, info, redraw) => {
     control(t('shareLang'), lang),
     h('div', { class: 'row-btns' },
       h('button', { class: 'primary', onclick: save }, t('save')),
-      h('button', { onclick: exportNow }, t('shareExport')),
+      exportBtn,
       h('a', { class: 'btn', href: `/share/${encodeURIComponent(own.slug)}`, target: '_blank', rel: 'noopener' }, t('sharePreview')),
       h('button', { onclick: () => confirm(t('shareStopAsk')) && post({ op: 'remove', project: p.name }, t('shareStopped')) }, t('shareStop'))),
+    unsaved,
     h('p', { class: 'muted small' }, own.exported ? t('shareFile', own.file, fmtDate(own.exported)) : t('shareNotYet', own.file)),
     h('p', { class: 'muted small' }, t('shareHost')))
+  sync()
   return box
 }
 
@@ -1254,7 +1270,10 @@ for (const b of document.querySelectorAll('[data-lang]'))
     route()
   })
 
-window.addEventListener('hashchange', route)
+window.addEventListener('hashchange', () => {
+  shareDrafts.clear()
+  route()
+})
 window.addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest('input, select, textarea')) return
   if (e.key === '1') location.hash = '#/'

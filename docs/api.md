@@ -121,7 +121,7 @@ Launch Watch ([watch.md](watch.md)): sites, heartbeats and wallet balances from 
 
 `GET /share/<slug>` returns the page as it would be exported now, for a preview on this computer.
 
-Turn a page on, change it or turn it off with `POST /api/settings` and `"share": [{ "op": "set", "project": "Acme", "show": ["stage", "updates"], "title": "Acme shop", "lang": "en" }]` or `{ "op": "remove", "project": "Acme" }`. `set` keeps the page's slug, and gives it one with a random part the first time; `""` clears the title or language. `set.shareDir` and `set.shareEvery` change the folder and the timer. These changes need no restart.
+Turn a page on, change it or turn it off with `POST /api/settings` and `"share": [{ "op": "set", "project": "Acme", "show": ["stage", "updates"], "title": "Acme shop", "lang": "en" }]` or `{ "op": "remove", "project": "Acme" }`. `set` keeps the page's slug (a project added to the config by hand without a slug keeps the one made from its name, the address its page already has), and gives a new page one with a random part; `""` clears the title or language. `set.shareDir` and `set.shareEvery` change the folder and the timer. These changes need no restart. When pages were exported before, a share change or a new folder exports again at once (a page you stopped sharing is deleted, a moved folder is emptied first), and the response has `share: { removed, failed }` (or `share: { error }`); without an earlier export `share` is absent.
 
 ## Settings
 

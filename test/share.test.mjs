@@ -307,15 +307,65 @@ test('balance incidents do not push site incidents off the page', async t => {
 })
 
 test('an export asked for while another runs starts again after it, with the newest settings', async t => {
-  const { here, file, app } = await serve(t, { projects: { Acme: { slug: 'acme-q1' } } })
+  let midway = null
+  const clock = () => {
+    if (midway) {
+      midway()
+      midway = null
+    }
+    return Date.now()
+  }
+  const { here, file, app } = await serve(t, { projects: { Acme: { slug: 'acme-q1' } } }, clock)
+  const page = path.join(here, 'share', 'acme-q1', 'index.html')
+  midway = () => {
+    const cfg = JSON.parse(fs.readFileSync(file, 'utf8'))
+    cfg.share.projects.Acme.show = ['updates']
+    fs.writeFileSync(file, JSON.stringify(cfg))
+  }
   const first = app.exportShare()
-  const cfg = JSON.parse(fs.readFileSync(file, 'utf8'))
-  cfg.share.projects.Acme.show = ['updates']
-  fs.writeFileSync(file, JSON.stringify(cfg))
   const second = app.exportShare()
   await first
+  assert.match(fs.readFileSync(page, 'utf8'), /In review/)
   await second
-  assert.ok(!fs.readFileSync(path.join(here, 'share', 'acme-q1', 'index.html'), 'utf8').includes('In review'))
+  assert.ok(!fs.readFileSync(page, 'utf8').includes('In review'))
+})
+
+test('moving the folder clears the old one only after an export that already runs', async t => {
+  const { here, file, call, app } = await serve(t, { projects: { Acme: { slug: 'acme-m2' } } })
+  await call('POST', '/api/share/export', {})
+  const old = path.join(here, 'share', 'acme-m2', 'index.html')
+  let open
+  const running = app.queueShare(() => new Promise(r => (open = r)))
+  const s = (await call('GET', '/api/settings')).json
+  const moved = call('POST', '/api/settings', { hash: s.hash, set: { shareDir: 'pages' } })
+  const dirOf = () => {
+    try {
+      return JSON.parse(fs.readFileSync(file, 'utf8')).share?.dir
+    } catch {
+      return null
+    }
+  }
+  while (dirOf() !== 'pages') await new Promise(r => setTimeout(r, 10))
+  await new Promise(r => setTimeout(r, 50))
+  assert.ok(fs.existsSync(old))
+  open()
+  await running
+  assert.equal((await moved).status, 200)
+  assert.equal(fs.existsSync(path.join(here, 'share', 'acme-m2')), false)
+  assert.ok(fs.existsSync(path.join(here, 'pages', 'acme-m2', 'index.html')))
+})
+
+test('a share change reports pages the export folder could not take', async t => {
+  const { here, call } = await serve(t, { projects: { Acme: { slug: 'acme-f1' } } })
+  await call('POST', '/api/share/export', {})
+  fs.mkdirSync(path.join(here, 'pages', 'acme-f1'), { recursive: true })
+  fs.writeFileSync(path.join(here, 'pages', 'acme-f1', 'index.html'), 'theirs')
+  const s = (await call('GET', '/api/settings')).json
+  const r = await call('POST', '/api/settings', { hash: s.hash, set: { shareDir: 'pages' } })
+  assert.equal(r.status, 200)
+  assert.deepEqual(r.json.share.failed.map(f => f.slug), ['acme-f1'])
+  assert.match(r.json.share.failed[0].error, /not written by Projium/)
+  assert.equal(fs.readFileSync(path.join(here, 'pages', 'acme-f1', 'index.html'), 'utf8'), 'theirs')
 })
 
 test('sharing a project from its page writes the config with a random slug and needs no restart', async t => {

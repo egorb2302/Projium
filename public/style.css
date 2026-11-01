@@ -305,6 +305,8 @@ button {
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 button:hover { background: var(--hover); border-color: #3d3d3d; }
+button:not(.primary, .loading):disabled { color: var(--dim); cursor: not-allowed; }
+button:not(.primary, .loading):disabled:hover { background: var(--bg-2); border-color: var(--line-2); }
 button.primary { background: var(--text); color: var(--bg); border-color: var(--text); }
 button.primary:hover { background: #fff; border-color: #fff; }
 
