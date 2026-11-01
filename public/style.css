@@ -495,6 +495,21 @@ tr.sub td { border-top-color: transparent; }
 .sk-panel i:nth-of-type(4n) { width: 85%; }
 main[aria-busy="true"] { pointer-events: none; }
 
+.wtable td { vertical-align: top; }
+.wtable .pname { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.wtable td.when { font: 12.5px var(--mono); white-space: nowrap; color: var(--muted); }
+.wsig { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; padding: 2px 0; font-size: 13px; }
+.wsig .dot { align-self: center; }
+.wsig-name { color: var(--muted); min-width: 76px; }
+.wsig-detail { overflow-wrap: anywhere; }
+.wrule { display: grid; gap: 2px; min-width: 180px; }
+.wrule .mono { font: 12px var(--mono); overflow-wrap: anywhere; }
+.wmute { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.wtarget { padding: 10px 0; border-top: 1px solid var(--line); }
+.panel h2 + .wtarget { padding-top: 0; border-top: 0; }
+.wtarget-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.wtarget-head b { font-size: 13.5px; font-weight: 600; }
+
 button.loading { color: var(--muted); cursor: progress; }
 button.loading::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 8px; vertical-align: -1px; border: 2px solid var(--line-2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -520,6 +535,14 @@ button.loading::before { content: ""; display: inline-block; width: 10px; height
 }
 
 @media (max-width: 700px) {
+  .wtable thead { display: none; }
+  .wtable, .wtable tbody, .wtable td { display: block; }
+  .wtable tr { display: flex; flex-direction: column; gap: 6px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .wtable tbody tr:last-child { border-bottom: 0; }
+  .table-wrap .wtable td, .table-wrap .wtable td:first-child, .table-wrap .wtable td:last-child { padding: 0; border: 0; }
+  .wtable.targets td:nth-child(2) { order: 3; }
+  .wtable.targets td:nth-child(4) { order: 4; }
+  .wrule { min-width: 0; }
   .ptable .c-m, .ptable .c-next { display: none; }
   .bar-r { width: 100%; }
   .bar .count { margin-right: auto; }

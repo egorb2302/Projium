@@ -1,5 +1,6 @@
 import { t, getLang, setLang, fmtDate } from './i18n.js'
-import { todayIn, taskState, sortTasks, topTask, signalData } from './logic.js'
+import { todayIn, taskState, sortTasks, topTask, signalData, targetState, watchSummary } from './logic.js'
+import { detailText, signalName, durationText } from './watch-text.js'
 
 const app = document.getElementById('app')
 const toastEl = document.getElementById('toast')
@@ -108,7 +109,7 @@ const healthDot = p => {
 const projectLink = p => h('a', { href: `#/p/${encodeURIComponent(p.name)}` }, p.name)
 
 const dayLabel = (d, year) => new Date(`${d}T00:00:00Z`).toLocaleDateString(t('locale'), { day: 'numeric', month: 'short', year: year ? 'numeric' : undefined, timeZone: 'UTC' })
-const SIG_TEXT = { down: 'sigDown', over: 'sigOverdue', p1: 'sigP1', soon: 'sigSoon', stale: 'sigStale' }
+const SIG_TEXT = { incident: 'sigIncident', down: 'sigDown', over: 'sigOverdue', p1: 'sigP1', soon: 'sigSoon', stale: 'sigStale' }
 const signals = p => signalData(p).map(s => ({ ...s, text: t(SIG_TEXT[s.kind], s.n) }))
 const sigChips = list => (list?.length ? h('div', { class: 'sigs' }, list.map(s => h('span', { class: `pill ${s.tone}${s.kind === 'p1' ? ' mono' : ''}` }, s.text))) : null)
 const urgency = p => p.sig.reduce((a, s) => a + s.w, 0)
@@ -149,7 +150,7 @@ const skeleton = page =>
   page === 'project'
     ? [h('div', { class: 'sk-head' }, h('div', {}, h('i', { class: 'sk-title' }), h('i'), h('div', { class: 'sk-strip' })), h('b', { class: 'sk-cover' })),
       h('div', { class: 'cols' }, h('div', {}, skPanel(8), skPanel(4)), h('div', {}, skPanel(3), skPanel(6)))]
-    : page === 'time'
+    : page === 'time' || page === 'watch'
       ? [h('div', { class: 'sk-strip sk-kpis' }), skPanel(9), skPanel(12)]
       : [h('div', { class: 'sk-bar' }, h('i'), h('i'), h('i')), h('div', { class: 'grid' }, skCard(), skCard(), skCard(), skCard())]
 
@@ -481,6 +482,7 @@ const renderProject = async (name, n) => {
             h('p', { class: 'muted small' }, t('fieldsNote', p.zone ?? '+00:00'))),
           h('section', { class: 'panel' }, h('h2', {}, t('tasks')), taskList(p, draw))),
         h('div', {},
+          watchPanel(p),
           h('section', { class: 'panel' }, h('h2', { class: 'row' }, h('span', {}, t('audit')), auditBadge(info)),
             meter(r),
             r ? h('p', { class: 'small' }, t('auditAt', r.audit || t('undated'))) : null,
@@ -714,26 +716,149 @@ const renderTime = async n => {
       h('p', { class: 'muted small' }, t('allNote'))))
 }
 
+const lang = () => getLang()
+const fmtShort = ts => new Date(ts).toLocaleString(t('locale'), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+const shortAddr = a => (a && a.length > 14 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a ?? '')
+const mutedNow = x => x.mutedUntil != null && x.mutedUntil > Date.now()
+const sigTone = s => (s.status === 'open' ? 'bad' : s.result == null ? 'off' : s.result === 'ok' ? 'ok' : 'warn')
+const STATE_TONE = { open: 'bad', ok: 'ok', wait: 'off', skip: 'warn' }
+const STATE_TEXT = { open: 'stOpen', ok: 'stOk', wait: 'stWait', skip: 'stSkip' }
+
+const signalLine = s => h('div', { class: 'wsig' },
+  h('span', { class: `dot ${sigTone(s)}` }),
+  h('span', { class: 'wsig-name' }, signalName(s.signal, lang())),
+  h('span', { class: 'wsig-detail' }, s.result == null ? t('stWait') : detailText(s.detail, lang())),
+  s.status === 'open' && s.since ? h('span', { class: 'muted small' }, t('sinceAt', fmtShort(s.since))) : null)
+
+const watchPanel = p => {
+  const w = p.watch
+  if (!w?.targets?.length) return null
+  return h('section', { class: 'panel' },
+    h('h2', { class: 'row' }, h('span', {}, t('watchPanel')), w.open ? h('span', { class: 'pill bad' }, t('sigIncident', w.open)) : h('span', { class: 'pill ok' }, t('stOk'))),
+    w.targets.map(x => h('div', { class: 'wtarget' },
+      h('div', { class: 'wtarget-head' }, h('b', {}, x.name), mutedNow(x) ? h('span', { class: 'pill off' }, t('mutedTill', fmtShort(x.mutedUntil))) : null),
+      x.signals.map(signalLine))),
+    h('p', { class: 'small' }, h('a', { href: '#/watch' }, t('allTargets'))))
+}
+
+const ruleLines = x => {
+  const link = (href, text) => (safeSite(href) ? h('a', { href, target: '_blank', rel: 'noreferrer noopener', class: 'mono' }, text) : h('span', { class: 'mono', title: href }, text))
+  if (x.kind === 'site') return [link(x.url, x.url), x.certDays ? t('certRule', x.certDays) : null]
+  if (x.kind === 'heartbeat')
+    return [
+      link(x.url, x.url),
+      x.field ? t('beatRule', x.field, x.maxAgeMin) : null,
+      x.activeWhen ? t('activeRule', Object.entries(x.activeWhen).map(([k, v]) => `${k} = ${v}`).join(', ')) : null,
+      x.max ? t('maxRule', Object.entries(x.max).map(([k, v]) => `${k} ≤ ${v}`).join(', ')) : null,
+    ]
+  return [
+    x.chain === 'solana' ? link(`https://solscan.io/account/${x.address}`, `${x.chain} ${shortAddr(x.address)}`) : h('span', { class: 'mono', title: x.address }, `${x.chain} ${shortAddr(x.address)}`),
+    t('belowRule', x.min, x.unit),
+    t('rpcFrom')[x.rpc] ?? x.rpc,
+  ]
+}
+
+const renderWatch = async n => {
+  const first = await api('/api/watch')
+  if (n !== seq) return
+  const draw = st => {
+    if (!st.enabled) return render(h('section', { class: 'panel' }, h('h2', {}, t('watchPanel')), h('p', { class: 'muted' }, t('watchOff'))))
+    const sum = watchSummary(st.targets)
+    const setMute = async (name, until) => {
+      try {
+        draw(await api('/api/watch/mute', { target: name, until }))
+      } catch (e) {
+        toast(e.message, true)
+        route()
+      }
+    }
+    const muteCell = x => (mutedNow(x)
+      ? h('div', { class: 'wmute' }, h('span', { class: 'pill off' }, t('mutedTill', fmtShort(x.mutedUntil))), h('button', { onclick: () => setMute(x.name, null) }, t('unmute')))
+      : h('select', { class: 'sort', 'aria-label': t('muteLabel', x.name), onchange: e => e.target.value && setMute(x.name, Date.now() + Number(e.target.value) * 60e3) },
+        h('option', { value: '' }, t('muteFor')), t('mutePresets').map(([m, label]) => h('option', { value: String(m) }, label))))
+    const check = h('button', {
+      onclick: async e => {
+        const b = e.currentTarget
+        b.disabled = true
+        b.classList.add('loading')
+        b.textContent = t('checking')
+        try {
+          draw(await api('/api/watch/check', {}))
+        } catch (err) {
+          toast(err.message, true)
+          b.disabled = false
+          b.classList.remove('loading')
+          b.textContent = t('checkNow')
+        }
+      },
+    }, t('checkNow'))
+    const unknown = sum.skip + sum.wait
+    const pills = [
+      h('span', { class: 'pill ok' }, t('watchOk', sum.ok)),
+      sum.open ? h('span', { class: 'pill bad' }, t('watchOpen', sum.open)) : null,
+      unknown ? h('span', { class: 'pill warn' }, t('watchUnknownN', unknown)) : null,
+      sum.muted ? h('span', { class: 'pill off' }, t('watchMutedN', sum.muted)) : null,
+    ]
+    const incState = i => (i.closedAt == null
+      ? h('span', { class: 'pill bad' }, t('incOpenFor', durationText(Date.now() - i.openedAt, lang())))
+      : i.end === 'removed' ? h('span', { class: 'pill off' }, t('incRemoved')) : h('span', { class: 'pill ok' }, t('incClosed', durationText(i.closedAt - i.openedAt, lang()))))
+    const sent = i => (i.openSent ? (i.closeSent && i.end !== 'removed' ? t('sentBoth') : t('sentOpen')) : i.muted ? t('sentMuted') : t('sentNone'))
+    const projectOf = name => (name ? h('div', { class: 'muted small' }, h('a', { href: `#/p/${encodeURIComponent(name)}` }, name)) : null)
+    const ruleCell = x => h('div', { class: 'wrule' }, h('span', {}, t('kinds')[x.kind] ?? x.kind), ruleLines(x).filter(Boolean).map(l => (l instanceof Node ? l : h('span', { class: 'muted small' }, l))))
+    render(
+      h('div', { class: 'bar' },
+        h('div', { class: 'bar-l' }, pills),
+        h('div', { class: 'bar-r' }, h('span', { class: 'count' }, [t('watchEvery', st.every), st.lastTick ? t('watchLast', fmtShort(st.lastTick.at)) : t('watchNever')].join(' · ')), check)),
+      st.lastTick?.offline ? h('p', { class: 'muted small' }, t('watchOffline')) : null,
+      st.notify ? null : h('p', { class: 'muted small' }, t('watchNoNotify')),
+      h('section', { class: 'panel' }, h('h2', {}, t('watchTargets')),
+        h('div', { class: 'table-wrap' }, h('table', { class: 'wtable targets' },
+          h('thead', {}, h('tr', {}, t('watchCols').map(x => h('th', {}, x)))),
+          h('tbody', {}, st.targets.map(x => {
+            const state = targetState(x)
+            return h('tr', {},
+              h('td', {}, h('div', { class: 'pname' }, h('span', { class: `dot ${STATE_TONE[state]}`, title: t(STATE_TEXT[state]) }), h('b', {}, x.name)), projectOf(x.project)),
+              h('td', {}, ruleCell(x)),
+              h('td', {}, x.signals.map(signalLine)),
+              h('td', {}, muteCell(x)))
+          })))),
+        h('p', { class: 'muted small' }, t('watchNote', st.failAfter, st.recoverAfter))),
+      h('section', { class: 'panel' }, h('h2', {}, t('watchIncidents')),
+        st.incidents.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'wtable' },
+          h('thead', {}, h('tr', {}, t('incCols').map(x => h('th', {}, x)))),
+          h('tbody', {}, st.incidents.map(i => h('tr', {},
+            h('td', { class: 'when' }, fmtShort(i.openedAt)),
+            h('td', {}, h('b', {}, i.target), h('span', { class: 'muted' }, ` · ${signalName(i.signal, lang())}`), projectOf(i.project)),
+            h('td', {}, incState(i)),
+            h('td', { class: 'wsig-detail' }, detailText(i.lastDetail, lang())),
+            h('td', { class: 'muted small' }, sent(i))))))) : h('p', { class: 'muted small' }, t('noIncidents'))))
+  }
+  draw(first)
+}
+
+const NAV = { list: 'navProjects', time: 'navTime', watch: 'navWatch' }
+
 const chrome = page => {
   document.documentElement.lang = getLang()
   for (const a of document.querySelectorAll('[data-nav]')) {
     a.classList.toggle('on', a.dataset.nav === page)
-    a.firstChild.textContent = `${a.dataset.nav === 'time' ? t('navTime') : t('navProjects')} `
+    a.firstChild.textContent = `${t(NAV[a.dataset.nav] ?? 'navProjects')} `
   }
   for (const b of document.querySelectorAll('[data-lang]')) b.setAttribute('aria-pressed', String(b.dataset.lang === getLang()))
 }
 
 const route = async () => {
   const hash = location.hash || '#/'
-  const page = hash.startsWith('#/p/') ? 'project' : hash === '#/time' ? 'time' : 'list'
+  const page = hash.startsWith('#/p/') ? 'project' : hash === '#/time' ? 'time' : hash === '#/watch' ? 'watch' : 'list'
   chrome(page)
-  document.getElementById('path').textContent = page === 'project' ? decodeURIComponent(hash.slice(4)) : page === 'time' ? t('navTime') : t('navProjects')
+  document.getElementById('path').textContent = page === 'project' ? decodeURIComponent(hash.slice(4)) : t(NAV[page] ?? 'navProjects')
   const n = ++seq
   const first = app.getAttribute('aria-busy') === 'true' && page === 'list'
   const slow = first ? null : setTimeout(() => n === seq && (render(skeleton(page)), app.setAttribute('aria-busy', 'true')), 150)
   try {
     if (page === 'project') await renderProject(decodeURIComponent(hash.slice(4)), n)
     else if (page === 'time') await renderTime(n)
+    else if (page === 'watch') await renderWatch(n)
     else await renderList(n)
   } catch (e) {
     if (n === seq) render(h('p', { class: 'muted' }, t('couldNotLoad', e.message)))
@@ -810,6 +935,7 @@ window.addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest('input, select, textarea')) return
   if (e.key === '1') location.hash = '#/'
   if (e.key === '2') location.hash = '#/time'
+  if (e.key === '3') location.hash = '#/watch'
   const search = document.getElementById('search')
   if (e.key === '/' && search) {
     e.preventDefault()

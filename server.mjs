@@ -8,7 +8,9 @@ import { repoOf, declaredRepos, readiness, freshness, updateFlags, releasePlan, 
 import { fetchConfig, updateStatus } from './lib/prod.mjs'
 import { createTimeCache, projectSplit, cardTime } from './lib/timesplit.mjs'
 import { openDb, checkSite, recordHealth, healthSummary, pruneHealth } from './lib/health.mjs'
-import { buildDigest, digestSender, isDue, parseAt, localDay } from './lib/digest.mjs'
+import { buildDigest, digestSender, commandSender, isDue, parseAt, localDay } from './lib/digest.mjs'
+import { createWatch } from './lib/watch.mjs'
+import { request } from './lib/net.mjs'
 import { createStreak } from './lib/streak.mjs'
 import { loadConfig, ignoreTest, formatOffset, instanceId } from './lib/config.mjs'
 
@@ -59,6 +61,10 @@ export const createApp = ({
   readinessFile = 'READINESS.md',
   cards = {},
   reviewAgents = ['code-reviewer'],
+  watch = null,
+  sendAlert = null,
+  watchLang = null,
+  watchGet = request,
   onShutdown = null,
 } = {}) => {
   const digestMinutes = parseAt(digestAt)
@@ -89,6 +95,15 @@ export const createApp = ({
     },
   })
   const timeByCard = new Map()
+  const watcher = createWatch({
+    db,
+    config: watch,
+    notify: sendAlert,
+    clock,
+    get: watchGet,
+    lang: watchLang ?? digestLang,
+    link: e => `http://127.0.0.1:${bound}/#/${e.project && store.list().some(c => c.name === e.project) ? `p/${encodeURIComponent(e.project)}` : 'watch'}`,
+  })
 
   const isIgnored = card => ignored(card.name) || [repoOf(reposRoot, card.name, card.text, undefined, card.repoHint), ...declaredRepos(reposRoot, card.name, card.text, card.repoHint)].some(p => p && ignored(p))
 
@@ -135,9 +150,15 @@ export const createApp = ({
       preview: previewUrl(card) ?? (info.og ? `/og/${encodeURIComponent(card.name)}` : null),
       repoInfo: { ...info, repo: info.repo ? path.basename(info.repo) : null, og: undefined },
       health: detail ? h : { ...h, history: undefined },
+      watch: watchView(card.name, detail),
       zone: formatOffset(utcOffset),
       ignored: isIgnored(card),
     }
+  }
+
+  const watchView = (name, detail) => {
+    const w = watcher.forProject(name)
+    return w && (detail ? w : { open: w.open, targets: w.targets.length })
   }
 
   const timeView = card => {
@@ -191,6 +212,8 @@ export const createApp = ({
     if (!c || !watched(card) || c.site !== card.fields.site || clock() - c.ts > 25 * 60e3) return undefined
     return c
   }
+
+  const watchTick = () => watcher.tick().catch(e => console.error(new Date().toISOString(), 'watch failed', String(e?.message ?? e).slice(0, 200)))
 
   const healthTick = async () => {
     for (const card of store.list()) {
@@ -326,6 +349,18 @@ export const createApp = ({
         if (!sending) return send(res, 409, { error: 'a digest is being sent right now' })
         return send(res, 200, { text: await sending })
       }
+      if (parts[0] === 'api' && parts[1] === 'watch' && req.method === 'GET' && parts.length === 2) return send(res, 200, watcher.status())
+      if (parts[0] === 'api' && parts[1] === 'watch' && parts[2] === 'mute' && req.method === 'POST' && parts.length === 3) {
+        const body = await readBody(req)
+        watcher.mute(String(body.target ?? ''), body.until ?? null)
+        return send(res, 200, watcher.status())
+      }
+      if (parts[0] === 'api' && parts[1] === 'watch' && parts[2] === 'check' && req.method === 'POST' && parts.length === 3) {
+        await readBody(req)
+        if (!watcher.targets.length) return send(res, 409, { error: 'no watch targets configured' })
+        await watcher.tick()
+        return send(res, 200, watcher.status())
+      }
       if (parts[0] === 'api' && parts[1] === 'projects' && req.method === 'GET' && parts.length === 2)
         return send(res, 200, await Promise.all(store.list().map(c => (c.error ? c : view(c)))))
       if (parts[0] === 'api' && parts[1] === 'projects' && parts[2] && req.method === 'GET' && parts.length === 3)
@@ -364,6 +399,7 @@ export const createApp = ({
       return send(res, 404, { error: 'not found' })
     } catch (e) {
       if (e instanceof Conflict) return send(res, 409, { error: e.message, current: e.current })
+      if (e?.status === 404) return send(res, 404, { error: e.message })
       return send(res, 400, { error: publicError(e) })
     }
   }
@@ -375,6 +411,7 @@ export const createApp = ({
   let timer
   let digestTimer
   let timeTimer
+  let watchTimer
   const start = () =>
     new Promise((resolve, reject) => {
       const failed = e =>
@@ -393,6 +430,10 @@ export const createApp = ({
           }, 60e3)
           setTimeout(() => timeTick().catch(() => {}), 5e3).unref()
           timeTimer = setInterval(() => timeTick().catch(() => {}), 60 * 60e3)
+          if (watcher.targets.length) {
+            setTimeout(() => watchTick(), 15e3).unref()
+            watchTimer = setInterval(watchTick, watch.every * 60e3)
+          }
         }
         resolve(server.address().port)
       })
@@ -402,13 +443,14 @@ export const createApp = ({
       clearInterval(timer)
       clearInterval(digestTimer)
       clearInterval(timeTimer)
+      clearInterval(watchTimer)
       server.closeAllConnections()
       server.close(() => {
         db.close()
         resolve()
       })
     })
-  return { start, stop, store, db, digestTick, healthTick, timeTick }
+  return { start, stop, store, db, digestTick, healthTick, timeTick, watchTick: () => watcher.tick(), watcher }
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -429,6 +471,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     digestAt: c.digest.at,
     digestLang: c.digest.lang,
     sendDigest: digestSender(c.digest),
+    watch: c.watch,
+    watchLang: c.watch?.lang,
+    sendAlert: c.watch?.command ? commandSender(c.watch.command, 'alert command') : digestSender(c.digest),
     streak: c.streak,
     onShutdown: () => app.stop().finally(() => process.exit(0)),
   })

@@ -34,6 +34,7 @@ A card entry:
 | `timeSplit` | `null` when the card has no repo, the project is ignored, or the first transcript scan (a few seconds after start, then hourly) has not run yet. Otherwise `{ sessions, agents, kept, lost, at, phases }`: `kept` counts sessions whose transcript is gone but whose times Projium had already saved, `lost` counts sessions deleted in the Claude app before Projium read them (their time is missing); `phases` has `toFirstPush`, `toMainnet` and `total` only when both milestone times of that phase are set. Each phase: milliseconds of `work`, `review`, `waiting`, `pause`, `missing`, plus `total` and `hasData`. |
 | `zone` | The configured UTC offset, like `+03:00`. |
 | `ignored` | `true` for projects matched by the `ignore` list. |
+| `watch` | `null` when no Launch Watch target names this project. Otherwise `{ open, targets }`: open incidents and the number of targets; `GET /api/projects/<name>` gives `targets` in full, as in `GET /api/watch`. |
 
 `GET /api/meta` returns `{ app: "projium", version, instance }`; `instance` is a hash of the projects folder, so a client can tell this Projium from another one on the same port.
 
@@ -83,6 +84,20 @@ The item at that position becomes `- [x] ` (or `- [ ] ` with `"done": false`); t
 **Send the digest now:** `POST /api/digest/send` with `{}`. `409` when no channel is configured or a send is in progress.
 
 **Stop the server:** `POST /api/shutdown` with `{}`, which is what `npm run stop` uses. Returns `{ "stopping": true }`; `404` when the server was not started from the command line (`npm start`, `start:bg`, autostart).
+
+## Watch
+
+Launch Watch ([watch.md](watch.md)): sites, heartbeats and wallet balances from the `watch` config block, checked whatever the stage of a project.
+
+`GET /api/watch` returns `{ enabled, every, failAfter, recoverAfter, notify, lastTick, targets, incidents }`:
+
+- `lastTick`: `{ at, ms, offline }` of the last round, or `null` before the first one. `offline` is `true` when no target answered and nothing was counted.
+- `targets`: the configured targets with their settings (`name`, `kind`, `project`, `url`, `address`, `chain`, `unit`, `min`, `certDays`, `field`, `maxAgeMin`, `activeWhen`, `max`; `rpc` is where a balance's RPC comes from: `public`, `config`, `env` or `missing`, never the URL), `mutedUntil` (epoch ms or `null`) and `signals`: one per check (`up` and `cert` for a site, `beat`, `balance`), each `{ signal, status, result, detail, ts, since, incident }`. `status` is `ok` or `open`; `result` is the last check: `ok`, `fail`, `skip` (unknown) or `null` before the first round. `detail` is a list of parts like `{ "k": "http", "status": 502 }` or `{ "k": "balance", "value": 0.012, "min": 0.05, "unit": "SOL" }`.
+- `incidents`: the last 100, open ones first: `{ id, target, signal, project, openedAt, closedAt, firstDetail, lastDetail, openSent, closeSent, muted, end }`. `end` is `recovered` or `removed` (the target left the config).
+
+**Check now:** `POST /api/watch/check` with `{}` runs a round and returns the same as `GET /api/watch`; `409` when no targets are configured.
+
+**Mute:** `POST /api/watch/mute` with `{ "target": "shop", "until": 1793540000000 }` (epoch ms, within 30 days) or `"until": null` to unmute. `404` for an unknown target, `400` for a time in the past or too far ahead.
 
 ## Example
 

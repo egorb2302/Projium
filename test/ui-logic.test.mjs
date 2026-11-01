@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { todayIn, taskState, sortTasks, topTask, signalData } from '../public/logic.js'
+import { todayIn, taskState, sortTasks, topTask, signalData, targetState, watchSummary } from '../public/logic.js'
 
 const NOW = Date.UTC(2026, 10, 1, 9, 0)
 const task = (id, extra = {}) => ({ id, done: false, text: id, due: '', p: '', ...extra })
@@ -53,4 +53,20 @@ test('signals: ignored projects get none; p1, a down site and a stale audit only
   assert.deepEqual(signalData(project({ tasks, ignored: true }), NOW), [])
   const up = signalData(project({ health: { last: { code: 200 } }, fields: { stage: 'fixes', site: 'https://a.example' } }), NOW)
   assert.deepEqual(up, [])
+})
+
+test('an open watch incident is a signal at any stage, ahead of the rest; targets read as open, ok, unknown or not checked yet', () => {
+  const done = signalData(project({ fields: { stage: 'done' }, watch: { open: 2, targets: 3 } }), NOW)
+  assert.deepEqual(done.map(s => [s.kind, s.tone, s.n, s.w]), [['incident', 'bad', 2, 200]])
+  assert.deepEqual(signalData(project({ fields: { stage: 'done' }, watch: { open: 0, targets: 3 } }), NOW), [])
+  const sig = (status, result) => ({ status, result })
+  const targets = [
+    { signals: [sig('ok', 'ok'), sig('open', 'fail')], mutedUntil: NOW + 60e3 },
+    { signals: [sig('ok', 'ok'), sig('ok', 'skip')], mutedUntil: NOW - 60e3 },
+    { signals: [sig('ok', 'skip')], mutedUntil: null },
+    { signals: [sig('ok', null)], mutedUntil: null },
+    { signals: [sig('ok', 'fail')], mutedUntil: null },
+  ]
+  assert.deepEqual(targets.map(targetState), ['open', 'ok', 'skip', 'wait', 'ok'])
+  assert.deepEqual(watchSummary(targets, NOW), { ok: 2, open: 1, wait: 1, skip: 1, muted: 1 })
 })

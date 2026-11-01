@@ -48,6 +48,53 @@
         }
       }
     },
+    "watch": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Launch Watch: sites, heartbeats and wallet balances checked every few minutes whatever the stage of a project, with one alert when an incident opens and one when it recovers. See docs/watch.md.",
+      "properties": {
+        "every": { "type": "number", "minimum": 1, "maximum": 1440, "default": 5, "description": "Minutes between check rounds." },
+        "failAfter": { "type": "integer", "minimum": 1, "maximum": 100, "default": 2, "description": "Failed checks in a row before an incident opens." },
+        "recoverAfter": { "type": "integer", "minimum": 1, "maximum": 100, "default": 2, "description": "Good checks in a row before an incident closes." },
+        "lang": { "enum": ["en", "ru"], "description": "Alert language; defaults to digest.lang." },
+        "command": { "type": "array", "items": { "type": "string" }, "minItems": 1, "description": "Command that sends alerts; the text is appended as the last argument. Defaults to the digest channel." },
+        "env": { "type": "array", "items": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" }, "default": [], "description": "Environment variables the alert command needs; start:bg passes them to the server." },
+        "rpc": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "solana": { "type": "string", "default": "https://api.mainnet-beta.solana.com", "description": "Solana JSON-RPC URL for balances." },
+            "solanaEnv": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$", "description": "Environment variable (or .env.local key) with a keyed Solana RPC URL; used when set." }
+          }
+        },
+        "targets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "kind"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1, "maxLength": 64, "description": "Unique name, shown in alerts." },
+              "kind": { "enum": ["site", "heartbeat", "balance"] },
+              "project": { "type": "string", "description": "Card name: alerts link to its page and the page shows the target." },
+              "failAfter": { "type": "integer", "minimum": 1, "maximum": 100 },
+              "recoverAfter": { "type": "integer", "minimum": 1, "maximum": 100 },
+              "url": { "type": "string", "pattern": "^https?://", "description": "site: the page to check (status below 400, redirects not followed). heartbeat: a URL returning a JSON object." },
+              "certDays": { "type": "integer", "minimum": 0, "maximum": 365, "default": 14, "description": "site over https: fail the certificate check this many days before it expires; 0 turns it off." },
+              "field": { "type": "string", "description": "heartbeat: key of the last beat time (epoch ms or s, or an ISO date); dots read nested keys." },
+              "maxAgeMin": { "type": "number", "exclusiveMinimum": 0, "description": "heartbeat: minutes the beat may be old, measured against the answer's Date header." },
+              "activeWhen": { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean"] }, "description": "heartbeat: check the age only while these keys hold these values, like { \"payoutsLive\": true }." },
+              "max": { "type": "object", "additionalProperties": { "type": "number" }, "description": "heartbeat: numbers that must stay at or under a limit, like { \"stuckOps\": 0 }." },
+              "chain": { "enum": ["solana", "evm"], "default": "solana", "description": "balance: Solana getBalance or EVM eth_getBalance." },
+              "address": { "type": "string", "description": "balance: public wallet address." },
+              "min": { "type": "number", "minimum": 0, "description": "balance: alert below this many whole coins." },
+              "unit": { "type": "string", "description": "balance: coin name shown in alerts; SOL for solana, ETH by default for evm." },
+              "rpc": { "type": "string", "pattern": "^https?://", "description": "balance: JSON-RPC URL; required for evm unless rpcEnv is set." },
+              "rpcEnv": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$", "description": "balance: environment variable holding a keyed RPC URL; wins over rpc when set." }
+            }
+          }
+        }
+      }
+    },
     "streak": {
       "type": "object",
       "additionalProperties": false,

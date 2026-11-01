@@ -27,6 +27,22 @@ export const topTask = (p, now) => {
   return sortTasks(p.tasks.filter(x => !x.done), today).find(x => taskState(x, today) || x.p === 'p1') ?? null
 }
 
+export const targetState = t => {
+  if (t.signals.some(s => s.status === 'open')) return 'open'
+  if (t.signals.every(s => s.result == null)) return 'wait'
+  if (t.signals.every(s => s.result == null || s.result === 'skip')) return 'skip'
+  return 'ok'
+}
+
+export const watchSummary = (targets, now = Date.now()) => {
+  const out = { ok: 0, open: 0, wait: 0, skip: 0, muted: 0 }
+  for (const t of targets) {
+    out[targetState(t)]++
+    if (t.mutedUntil != null && t.mutedUntil > now) out.muted++
+  }
+  return out
+}
+
 export const signalData = (p, now) => {
   if (p.ignored) return []
   const today = todayIn(p.zone, now)
@@ -40,7 +56,9 @@ export const signalData = (p, now) => {
   const f = p.repoInfo?.freshness ?? {}
   const behind = Math.max(f.sinceLocal ?? 0, f.sinceOrigin ?? 0)
   const stale = live && f.state === 'changed-after'
+  const incidents = p.watch?.open ?? 0
   return [
+    incidents && { kind: 'incident', tone: 'bad', w: 100 * incidents, n: incidents },
     down && { kind: 'down', tone: 'bad', w: 100, n: 1 },
     over && { kind: 'over', tone: 'bad', w: 30 * over, n: over },
     p1 && { kind: 'p1', tone: 'warn', w: 10 * p1, n: p1 },

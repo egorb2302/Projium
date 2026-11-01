@@ -2,8 +2,15 @@
 
 Versions follow [semantic versioning](https://semver.org); each one is a git tag (`v0.4.0`). After pulling a new version, restart the server (`npm run --silent stop`, then `npm run --silent start:bg`, or log in again with autostart).
 
-## Unreleased
+## 0.8.0 (2026-11-01)
 
+- **Launch Watch** ([docs/watch.md](docs/watch.md)): a `watch` block in the config lists what is live, checked every 5 minutes whatever the stage of the project (a `done` project that is still live stays watched):
+  - sites (status below 400) and their TLS certificates (alert 14 days before expiry by default);
+  - a heartbeat: a JSON URL whose last-beat time must not get older than a limit, optionally only while a flag holds (`activeWhen`), plus numbers that must stay under a limit (`max`, like `stuckOps`);
+  - wallet balances below a minimum: Solana `getBalance` over the public mainnet RPC or a keyed one named by an environment variable, EVM `eth_getBalance`.
+- An incident opens after 2 failed checks in a row and closes after 2 good ones (`failAfter`, `recoverAfter`). One message when it opens and one when it recovers, through the digest channel or `watch.command`, none while it stays open; incidents of one round share a message, a failed send is retried. A round where nothing answers is taken as the computer being offline and counts nothing.
+- A new **Watch** page (key `3`): targets with their state, mute for 30 minutes to 3 days (checks go on, messages wait for the end of the mute), **Check now**, and the incident history kept in `data/tracker.db`. Project pages show their targets; the list's Needs attention panel shows open incidents at any stage. API: `GET /api/watch`, `POST /api/watch/check`, `POST /api/watch/mute`, and `watch` on each card.
+- Doctor reports the watch targets, the alert channel and where each wallet's RPC comes from, with hints for a missing RPC variable or a target naming no card. `start:bg` passes the RPC variables to the server.
 - The Edit button of a task is always shown (muted until you point at the task), so it is clear that tasks can be edited; it was invisible until hover.
 
 ## 0.7.0 (2026-11-01)
