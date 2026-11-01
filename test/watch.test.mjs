@@ -452,15 +452,87 @@ test('alerts over the Telegram limit are split into several messages and every i
   assert.ok(r.sent.length > 1)
   assert.ok(r.sent.every(s => s.length <= 4000 && !s.endsWith('…')))
   assert.equal(r.sent.join('\n\n').split('\n\n').length, 120)
-  assert.ok(r.w.status().incidents.every(i => i.openSent))
+  assert.equal(r.db.prepare('select count(*) n from watch_incidents where open_sent = 1').get().n, 120)
+
+  const db = tempDb(t)
+  let calls = 0
+  const texts = []
+  const flaky = createWatch({
+    db,
+    config: watchConfig({ failAfter: 1, recoverAfter: 1, targets: names.map(n => site(n, `https://${n}.example`)) }),
+    notify: async text => {
+      if (++calls === 2) throw new Error('telegram: HTTP 429')
+      texts.push(text)
+    },
+    get: async () => ({ status: 500, headers: {} }),
+    log: () => {},
+  })
+  const first = await flaky.tick()
+  const marked = () => db.prepare('select count(*) n from watch_incidents where open_sent = 1').get().n
+  assert.equal(first.sent, marked())
+  assert.ok(first.sent > 0 && first.sent < 120, 'the batches before the failure are marked, the rest wait')
+  const second = await flaky.tick()
+  assert.equal(first.sent + second.sent, 120)
+  assert.equal(marked(), 120)
+  assert.equal(new Set(texts.join('\n\n').split('\n\n')).size, 120, 'each incident went out exactly once')
+
+  const big = rig(t, { failAfter: 1, recoverAfter: 1, targets: [{ name: 'many', kind: 'heartbeat', url: 'https://m.example/h', max: Object.fromEntries(Array.from({ length: 140 }, (_, i) => [`metric_${i}_with_a_long_name`, 0])) }] })
+  big.routes['https://m.example/h'] = { status: 200, body: JSON.stringify(Object.fromEntries(Array.from({ length: 140 }, (_, i) => [`metric_${i}_with_a_long_name`, 1]))) }
+  await big.w.tick()
+  assert.equal(big.sent.length, 1)
+  const [head, line, link] = big.sent[0].split('\n')
+  assert.equal(head, 'Сбой: many · пульс')
+  assert.ok(line.startsWith('metric_0_with_a_long_name = 1 (максимум 0); ') && line.endsWith('…') && line.length === 3000)
+  assert.equal(link, 'http://127.0.0.1:3210/#/watch')
+})
+
+test('a flap while muted reads in order: the recovery of the announced incident, then the new one', async t => {
+  const r = rig(t, { failAfter: 1, recoverAfter: 1, targets: [site('a', 'https://a.example'), site('b', 'https://b.example')] })
+  r.routes['https://b.example'] = { status: 200 }
+  await r.w.tick()
+  r.w.mute('a', r.at() + 60 * MIN)
+  r.routes['https://a.example'] = { status: 200 }
+  r.advance(5 * MIN)
+  await r.w.tick()
+  r.routes['https://a.example'] = { status: 503 }
+  r.advance(5 * MIN)
+  await r.w.tick()
+  r.advance(60 * MIN)
+  await r.w.tick()
+  assert.equal(r.sent.length, 2)
+  assert.match(r.sent[1], /^Восстановлено: a · сайт\nHTTP 200, длилось 5 мин\n.*\n\nСбой: a · сайт\nHTTP 503\n/)
+  assert.equal(r.w.status().targets[0].signals[0].status, 'open')
+})
+
+test('a dual-stack connect error counts as the server down, and a recovery of a removed target is never sent', async t => {
+  const agg = () => Object.assign(new AggregateError([netError('ENETUNREACH'), netError('ECONNREFUSED')], 'connect'), { code: 'ENETUNREACH' })
+  const r = rig(t, { failAfter: 1, recoverAfter: 1, targets: [site('a', 'https://a.example'), site('b', 'https://b.example')] })
+  r.routes['https://a.example'] = agg
+  r.routes['https://b.example'] = agg
+  const out = await r.w.tick()
+  assert.equal(out.offline, false)
+  assert.deepEqual(r.w.status().targets[0].signals[0].detail, [{ k: 'net', code: 'ECONNREFUSED' }])
+  assert.equal(r.sent.length, 1)
+
+  r.w.mute('a', r.at() + 60 * MIN)
+  r.routes['https://a.example'] = { status: 200 }
+  r.routes['https://b.example'] = { status: 200 }
+  r.advance(MIN)
+  await r.w.tick()
+  assert.equal(r.sent.length, 2, 'b recovers, a is muted')
+  const w2 = r.make({ failAfter: 1, recoverAfter: 1, targets: [site('b', 'https://b.example')] })
+  r.advance(90 * MIN)
+  await w2.tick()
+  assert.equal(r.sent.length, 2, 'a left the config: its held recovery is dropped')
+  assert.equal(r.db.prepare("select close_sent from watch_incidents where target = 'a'").get().close_sent, 1)
 })
 
 test('a heartbeat fails on a missing or retyped activeWhen flag and on a beat from the future, clips echoed values, and ignores a cached or far-off Date', async t => {
   const url = 'https://app.example/api/health'
   let body
-  let headers = {}
+  let headers = () => ({})
   const r = rig(t, { failAfter: 1, recoverAfter: 1, targets: [{ name: 'k', kind: 'heartbeat', url, field: 'lastCycleAt', maxAgeMin: 20, activeWhen: { payoutsLive: true } }] }, { lang: 'en' })
-  r.routes[url] = (opts, now) => ({ status: 200, body: JSON.stringify(body(now)), headers })
+  r.routes[url] = (_opts, now) => ({ status: 200, body: JSON.stringify(body(now)), headers: headers(now) })
   const detail = async () => {
     r.advance(MIN)
     await r.w.tick()
@@ -475,13 +547,16 @@ test('a heartbeat fails on a missing or retyped activeWhen flag and on a beat fr
   assert.deepEqual(await detail(), ['fail', 'last beat is 7200 min in the future'])
   body = now => ({ payoutsLive: true, lastCycleAt: now + 2 * MIN })
   assert.deepEqual(await detail(), ['ok', 'last beat 0 min ago (limit 20)'])
-  body = now => ({ payoutsLive: true, lastCycleAt: now - 30 * MIN })
-  headers = { date: new Date(r.at() - 25 * MIN).toUTCString(), age: '1500' }
-  assert.equal((await detail())[0], 'fail', 'a cached answer is measured against the local clock')
-  headers = { date: new Date(r.at() - 60 * MIN).toUTCString() }
-  assert.equal((await detail())[0], 'fail', 'a Date far from the local clock is not trusted')
-  headers = {}
-  r.routes[url] ={ status: 200, body: JSON.stringify({ payoutsLive: false, lastCycleAt: 1 }) }
+  body = now => ({ payoutsLive: true, lastCycleAt: now - 25 * MIN })
+  headers = now => ({ date: new Date(now - 8 * MIN).toUTCString() })
+  assert.deepEqual(await detail(), ['ok', 'last beat 17 min ago (limit 20)'], 'a close Date is trusted')
+  headers = now => ({ date: new Date(now - 8 * MIN).toUTCString(), age: '480' })
+  assert.deepEqual(await detail(), ['fail', 'last beat 25 min ago (limit 20)'], 'a cached answer is measured against the local clock')
+  body = now => ({ payoutsLive: true, lastCycleAt: now - 70 * MIN })
+  headers = now => ({ date: new Date(now - 60 * MIN).toUTCString() })
+  assert.deepEqual(await detail(), ['fail', 'last beat 70 min ago (limit 20)'], 'a Date far from the local clock is not trusted')
+  headers = () => ({})
+  r.routes[url] = { status: 200, body: JSON.stringify({ payoutsLive: false, lastCycleAt: 1 }) }
   assert.deepEqual(await detail(), ['ok', 'payoutsLive is false, age not checked'])
   const long = rig(t, { failAfter: 1, recoverAfter: 1, targets: [{ name: 'k', kind: 'heartbeat', url, field: 'lastCycleAt', maxAgeMin: 20, activeWhen: { mode: 'live' } }] })
   long.routes[url] = { status: 200, body: JSON.stringify({ mode: 'm'.repeat(400000), lastCycleAt: 1 }) }

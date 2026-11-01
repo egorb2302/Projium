@@ -74,11 +74,14 @@ export const durationText = (ms, lang) => {
 
 export const ALERT_MAX = 4000
 
+const DETAIL_MAX = 3000
+
 export const alertBlock = (e, { lang = 'en', link = () => null } = {}) => {
   const w = words(lang)
+  const detail = detailText(e.detail, lang)
   return [
     `${e.kind === 'open' ? w.open : w.close}: ${e.target} · ${signalName(e.signal, lang)}`,
-    [detailText(e.detail, lang), e.kind === 'close' && e.openedAt != null && e.closedAt != null ? w.lasted(durationText(e.closedAt - e.openedAt, lang)) : ''].filter(Boolean).join(', '),
+    [detail.length > DETAIL_MAX ? `${detail.slice(0, DETAIL_MAX - 1)}…` : detail, e.kind === 'close' && e.openedAt != null && e.closedAt != null ? w.lasted(durationText(e.closedAt - e.openedAt, lang)) : ''].filter(Boolean).join(', '),
     link(e),
   ].filter(Boolean).join('\n')
 }

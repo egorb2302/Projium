@@ -46,7 +46,7 @@ Every target has a unique `name` (shown in alerts), a `kind`, and optionally `pr
 
 `url` returns a JSON object (at most 512 KB).
 
-- `field` and `maxAgeMin`: the key holding the time of the last beat (epoch milliseconds or seconds, or an ISO date; a dotted path like `keeper.lastRun` reads nested keys) and how many minutes old it may be. Its age is measured against the answer's `Date` header, so a wrong clock on your computer does not matter.
+- `field` and `maxAgeMin`: the key holding the time of the last beat (epoch milliseconds or seconds, or an ISO date; a dotted path like `keeper.lastRun` reads nested keys) and how many minutes old it may be. Its age is measured against the answer's `Date` header, so a few minutes of drift on your computer's clock do not matter.
 - `activeWhen`: the age is only checked while these keys hold these values, like `{ "payoutsLive": true }`; while one holds another value of the same type, the beat counts as fine. A key that is missing or of another type (a renamed flag, `"true"` as text) fails the check. A beat more than 5 minutes in the future fails too. The answer's `Date` is not used when the answer has an `Age` header (a cache) or is more than 10 minutes off your clock.
 - `max`: numbers that must not go over a limit at any time, like `{ "stuckOps": 0 }`.
 
