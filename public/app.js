@@ -762,6 +762,7 @@ const renderWatch = async n => {
   const first = await api('/api/watch')
   if (n !== seq) return
   const draw = st => {
+    if (n !== seq) return
     if (!st.enabled) return render(h('section', { class: 'panel' }, h('h2', {}, t('watchPanel')), h('p', { class: 'muted' }, t('watchOff'))))
     const sum = watchSummary(st.targets)
     const setMute = async (name, until) => {

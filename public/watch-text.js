@@ -16,6 +16,8 @@ const WORDS = {
       nocert: () => 'certificate not read',
       beat: p => `last beat ${p.age} min ago (limit ${p.max})`,
       nobeat: p => `no time in ${p.field}`,
+      ahead: p => `last beat is ${p.min} min in the future`,
+      nokey: p => `${p.key} is missing or of another type`,
       paused: p => `${p.key} is ${p.value}, age not checked`,
       limit: p => `${p.key} is ${p.value} (max ${p.max})`,
       nolimit: p => `no number in ${p.key}`,
@@ -41,6 +43,8 @@ const WORDS = {
       nocert: () => 'сертификат не прочитан',
       beat: p => `последний пульс ${p.age} мин назад (порог ${p.max})`,
       nobeat: p => `нет времени в ${p.field}`,
+      ahead: p => `пульс из будущего: на ${p.min} мин вперёд`,
+      nokey: p => `нет поля ${p.key} или у него другой тип`,
       paused: p => `${p.key} = ${p.value}, возраст не проверяется`,
       limit: p => `${p.key} = ${p.value} (максимум ${p.max})`,
       nolimit: p => `нет числа в ${p.key}`,
@@ -68,16 +72,20 @@ export const durationText = (ms, lang) => {
   return h % 24 ? `${Math.floor(h / 24)} ${w.d} ${h % 24} ${w.h}` : `${h / 24} ${w.d}`
 }
 
-export const alertText = (events, { lang = 'en', link = () => null } = {}) => {
+export const ALERT_MAX = 4000
+
+export const alertBlock = (e, { lang = 'en', link = () => null } = {}) => {
   const w = words(lang)
-  const text = events
-    .map(e => [
-      `${e.kind === 'open' ? w.open : w.close}: ${e.target} · ${signalName(e.signal, lang)}`,
-      [detailText(e.detail, lang), e.kind === 'close' && e.openedAt != null && e.closedAt != null ? w.lasted(durationText(e.closedAt - e.openedAt, lang)) : ''].filter(Boolean).join(', '),
-      link(e),
-    ].filter(Boolean).join('\n'))
-    .join('\n\n')
-  if (text.length <= 4000) return text
-  const cut = text.slice(0, 3990)
+  return [
+    `${e.kind === 'open' ? w.open : w.close}: ${e.target} · ${signalName(e.signal, lang)}`,
+    [detailText(e.detail, lang), e.kind === 'close' && e.openedAt != null && e.closedAt != null ? w.lasted(durationText(e.closedAt - e.openedAt, lang)) : ''].filter(Boolean).join(', '),
+    link(e),
+  ].filter(Boolean).join('\n')
+}
+
+export const alertText = (events, opts = {}) => {
+  const text = events.map(e => alertBlock(e, opts)).join('\n\n')
+  if (text.length <= ALERT_MAX) return text
+  const cut = text.slice(0, ALERT_MAX - 10)
   return `${cut.slice(0, cut.lastIndexOf('\n'))}\n…`
 }

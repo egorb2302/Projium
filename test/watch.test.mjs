@@ -224,13 +224,13 @@ test('a heartbeat goes stale past maxAgeMin only while activeWhen matches, measu
   assert.match(r.sent[2], /stuckOps = 2 \(максимум 0\)/)
 
   const at = r.at()
-  body = { payoutsLive: true, lastCycleAt: Math.floor((at - 30 * MIN) / 1000), stuckOps: 0 }
-  date = new Date(at - 25 * MIN).toUTCString()
+  body = { payoutsLive: true, lastCycleAt: Math.floor((at - 24 * MIN) / 1000), stuckOps: 0 }
+  date = new Date(at - 8 * MIN).toUTCString()
   r.advance(MIN)
   await r.w.tick()
   const sig = r.w.status().targets[0].signals[0]
   assert.equal(sig.status, 'ok', 'seconds are read as a time, and the age is measured against the server Date')
-  assert.deepEqual(sig.detail, [{ k: 'beat', age: 5, max: 20 }])
+  assert.deepEqual(sig.detail, [{ k: 'beat', age: 16, max: 20 }])
 
   date = null
   for (const [b, re] of [[{ payoutsLive: true, stuckOps: 0 }, /нет времени в lastCycleAt/], ['not json', /ответ не JSON/]]) {
@@ -325,6 +325,15 @@ test('a round where no target answers is treated as the network being down and c
   const single = rig(t, { failAfter: 1, recoverAfter: 1, targets: [site('only', 'https://only.example')] })
   await single.w.tick()
   assert.equal(single.sent.length, 1, 'a single host cannot tell a network outage from its own')
+
+  const server = rig(t, { failAfter: 1, recoverAfter: 1, targets: [site('shop', 'https://shop.example'), site('api', 'https://api.shop.example')] })
+  server.routes['https://shop.example'] = netError('ECONNREFUSED')
+  server.routes['https://api.shop.example'] = Object.assign(new Error('timeout'), { name: 'TimeoutError' })
+  const out2 = await server.w.tick()
+  assert.equal(out2.offline, false, 'refused connections and timeouts are a down server, not a missing network')
+  assert.equal(server.sent.length, 1)
+  assert.match(server.sent[0], /Сбой: shop · сайт\nнет ответа \(ECONNREFUSED\)/)
+  assert.match(server.sent[0], /Сбой: api · сайт\nнет ответа \(timeout\)/)
 })
 
 test('a failed send is retried on the next round and goes out once; incidents that start together share one message', async t => {
@@ -414,4 +423,95 @@ test('request sends a POST body with its length and returns headers; the certifi
   assert.equal(certExpiry({ getPeerCertificate: () => ({}) }), null)
   assert.equal(certExpiry(null), null)
   await assert.rejects(request('http://127.0.0.1:9/'), /private address/)
+  await assert.rejects(request(`http://rpc.test:${server.address().port}/`, { method: 'POST', body: '{}', maxBytes: 5, lookup: local }), e => e.code === 'ETOOLARGE' && e.message === 'too large')
+})
+
+test('an incident announced before a long mute gets its recovery message when the mute ends, even days later', async t => {
+  const r = rig(t, { failAfter: 1, recoverAfter: 1, targets: [site('a', 'https://a.example'), site('b', 'https://b.example')] })
+  r.routes['https://b.example'] = { status: 200 }
+  await r.w.tick()
+  assert.equal(r.sent.length, 1)
+  r.w.mute('a', r.at() + 3 * 864e5)
+  r.routes['https://a.example'] = { status: 200 }
+  r.advance(5 * MIN)
+  await r.w.tick()
+  assert.equal(r.sent.length, 1, 'muted: the recovery waits')
+  r.advance(3 * 864e5)
+  await r.w.tick()
+  assert.equal(r.sent.length, 2)
+  assert.match(r.sent[1], /^Восстановлено: a · сайт\nHTTP 200, длилось 5 мин\n/)
+  assert.equal(r.w.status().incidents[0].closeSent, true)
+})
+
+test('alerts over the Telegram limit are split into several messages and every incident is marked sent', async t => {
+  const names = Array.from({ length: 120 }, (_, i) => `target-${String(i).padStart(3, '0')}-${'x'.repeat(30)}`)
+  const r = rig(t, { failAfter: 1, recoverAfter: 1, targets: names.map(n => site(n, `https://${n}.example`)) }, { lang: 'en' })
+  for (const n of names) r.routes[`https://${n}.example`] = { status: 500 }
+  const out = await r.w.tick()
+  assert.equal(out.sent, 120)
+  assert.ok(r.sent.length > 1)
+  assert.ok(r.sent.every(s => s.length <= 4000 && !s.endsWith('…')))
+  assert.equal(r.sent.join('\n\n').split('\n\n').length, 120)
+  assert.ok(r.w.status().incidents.every(i => i.openSent))
+})
+
+test('a heartbeat fails on a missing or retyped activeWhen flag and on a beat from the future, clips echoed values, and ignores a cached or far-off Date', async t => {
+  const url = 'https://app.example/api/health'
+  let body
+  let headers = {}
+  const r = rig(t, { failAfter: 1, recoverAfter: 1, targets: [{ name: 'k', kind: 'heartbeat', url, field: 'lastCycleAt', maxAgeMin: 20, activeWhen: { payoutsLive: true } }] }, { lang: 'en' })
+  r.routes[url] = (opts, now) => ({ status: 200, body: JSON.stringify(body(now)), headers })
+  const detail = async () => {
+    r.advance(MIN)
+    await r.w.tick()
+    const s = r.w.status().targets[0].signals[0]
+    return [s.result, detailText(s.detail, 'en')]
+  }
+  body = now => ({ lastCycleAt: now - 300 * MIN })
+  assert.deepEqual(await detail(), ['fail', 'payoutsLive is missing or of another type'])
+  body = now => ({ payoutsLive: 'true', lastCycleAt: now - 300 * MIN })
+  assert.deepEqual(await detail(), ['fail', 'payoutsLive is missing or of another type'])
+  body = now => ({ payoutsLive: true, lastCycleAt: now + 5 * 864e5 })
+  assert.deepEqual(await detail(), ['fail', 'last beat is 7200 min in the future'])
+  body = now => ({ payoutsLive: true, lastCycleAt: now + 2 * MIN })
+  assert.deepEqual(await detail(), ['ok', 'last beat 0 min ago (limit 20)'])
+  body = now => ({ payoutsLive: true, lastCycleAt: now - 30 * MIN })
+  headers = { date: new Date(r.at() - 25 * MIN).toUTCString(), age: '1500' }
+  assert.equal((await detail())[0], 'fail', 'a cached answer is measured against the local clock')
+  headers = { date: new Date(r.at() - 60 * MIN).toUTCString() }
+  assert.equal((await detail())[0], 'fail', 'a Date far from the local clock is not trusted')
+  headers = {}
+  r.routes[url] ={ status: 200, body: JSON.stringify({ payoutsLive: false, lastCycleAt: 1 }) }
+  assert.deepEqual(await detail(), ['ok', 'payoutsLive is false, age not checked'])
+  const long = rig(t, { failAfter: 1, recoverAfter: 1, targets: [{ name: 'k', kind: 'heartbeat', url, field: 'lastCycleAt', maxAgeMin: 20, activeWhen: { mode: 'live' } }] })
+  long.routes[url] = { status: 200, body: JSON.stringify({ mode: 'm'.repeat(400000), lastCycleAt: 1 }) }
+  await long.w.tick()
+  assert.equal(long.w.status().targets[0].signals[0].detail[0].value.length, 80)
+})
+
+test('targets dropped from the config are swept when the watcher starts, even with no targets left', async t => {
+  const r = rig(t, { failAfter: 1, recoverAfter: 1, targets: [site('a', 'https://a.example')] })
+  await r.w.tick()
+  assert.equal(r.w.status().incidents[0].closedAt, null)
+  const empty = r.make(null)
+  const inc = empty.status().incidents[0]
+  assert.equal(inc.end, 'removed')
+  assert.ok(inc.closedAt)
+  assert.equal(r.sent.length, 1)
+  const again = r.make({ failAfter: 1, recoverAfter: 1, targets: [site('a', 'https://a.example')] })
+  r.advance(MIN)
+  await again.tick()
+  assert.equal(r.sent.length, 2, 'a target added back starts a new incident and announces it')
+})
+
+test('URLs show without their query or user info, and an upper-case HTTPS still gets a certificate check', t => {
+  const r = rig(t, { targets: [
+    { name: 'a', kind: 'heartbeat', url: 'https://user:pw@app.example/health?token=SECRET', max: { stuckOps: 0 } },
+    { name: 'b', kind: 'site', url: 'HTTPS://shop.example' },
+    { name: 'c', kind: 'site', url: 'https://plain.example' },
+  ] })
+  const st = r.w.status()
+  assert.deepEqual(st.targets.map(x => x.url), ['https://app.example/health?…', 'HTTPS://shop.example', 'https://plain.example'])
+  assert.ok(!JSON.stringify(st).includes('SECRET') && !JSON.stringify(st).includes('pw@'))
+  assert.equal(st.targets[1].certDays, 14)
 })

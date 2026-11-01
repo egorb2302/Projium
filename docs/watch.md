@@ -47,7 +47,7 @@ Every target has a unique `name` (shown in alerts), a `kind`, and optionally `pr
 `url` returns a JSON object (at most 512 KB).
 
 - `field` and `maxAgeMin`: the key holding the time of the last beat (epoch milliseconds or seconds, or an ISO date; a dotted path like `keeper.lastRun` reads nested keys) and how many minutes old it may be. Its age is measured against the answer's `Date` header, so a wrong clock on your computer does not matter.
-- `activeWhen`: the age is only checked while these keys hold these values, like `{ "payoutsLive": true }`; otherwise the beat counts as fine.
+- `activeWhen`: the age is only checked while these keys hold these values, like `{ "payoutsLive": true }`; while one holds another value of the same type, the beat counts as fine. A key that is missing or of another type (a renamed flag, `"true"` as text) fails the check. A beat more than 5 minutes in the future fails too. The answer's `Date` is not used when the answer has an `Age` header (a cache) or is more than 10 minutes off your clock.
 - `max`: numbers that must not go over a limit at any time, like `{ "stuckOps": 0 }`.
 
 A non-200 answer, a body that is not JSON, a missing time or a missing number fail the check.
@@ -66,10 +66,12 @@ An RPC that fails or answers with an error is "unknown": it neither opens nor cl
 ## Incidents and alerts
 
 - An incident opens after `failAfter` failed checks in a row and closes after `recoverAfter` good ones. "Unknown" results (a certificate that could not be read, an RPC error) do not count either way.
-- One message when it opens, one when it recovers (with how long it lasted), none while it stays open. Incidents that start or end in the same round share one message. A message that fails to send is retried every round.
-- A round in which no target answers at all, across two or more hosts, is taken as your own network being down (sleep, Wi-Fi) and counts nothing.
-- **Mute** a target from the Watch page or `POST /api/watch/mute` until a time (at most 30 days ahead). It is still checked and its incidents are recorded; messages wait until the mute ends. An incident that is still open then is sent; one that recovered meanwhile sends nothing.
-- A target removed from the config closes its open incident without a message. Closed incidents are kept for a year.
+- One message when it opens, one when it recovers (with how long it lasted), none while it stays open. Incidents that start or end in the same round share one message (split into several under Telegram's 4000 characters). A message that fails to send is retried every round, so an outage of the alert channel delays alerts instead of losing them.
+- A round in which no target can be reached at all because names do not resolve or the network is unreachable (`ENOTFOUND`, `EAI_AGAIN`, `ENETUNREACH`, `ENETDOWN`), across two or more hosts, is taken as your own computer being offline (sleep, Wi-Fi) and counts nothing. Refused connections and timeouts still count, so two sites on one server that goes down do open incidents.
+- **Mute** a target from the Watch page or `POST /api/watch/mute` until a time (at most 30 days ahead). It is still checked and its incidents are recorded; messages wait until the mute ends. Then an incident that is still open is sent, and one that was announced before the mute and recovered during it gets its recovery message; one that both opened and recovered during the mute sends nothing.
+- A target removed from the config closes its open incident without a message, at the next start or round. Closed incidents are kept for a year.
+- Like the site checks, watch requests refuse names that resolve to loopback, private or link-local addresses (`EPRIVATE`), so a keeper on `localhost` or your LAN cannot be watched. Heartbeat bodies over 512 KB fail with `ETOOLARGE`.
+- Site and heartbeat URLs show on the dashboard without their query string and user info, but they are stored in your config as written; do not put tokens in them that you would not keep in a config file.
 
 Alert example (`lang: "ru"`):
 
