@@ -14,6 +14,7 @@ import { request } from './lib/net.mjs'
 import { createStreak } from './lib/streak.mjs'
 import { loadConfig, ignoreTest, formatOffset, instanceId, configPath } from './lib/config.mjs'
 import { settingsView, applySettings, settingsHash } from './lib/settings.mjs'
+import { writeRun, clearRun, runFile } from './lib/control.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 
@@ -515,12 +516,20 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     sendAlert: c.watch?.command ? commandSender(c.watch.command, 'alert command') : digestSender(c.digest),
     streak: c.streak,
     configFile: c.file ?? configPath(here),
-    onShutdown: () => app.stop().finally(() => process.exit(0)),
+    onShutdown: () => app.stop().finally(() => {
+      clearRun(c)
+      process.exit(0)
+    }),
   })
   if (c.unknownKeys.length) console.error(`config: unknown keys ignored: ${c.unknownKeys.join(', ')} (run npm run --silent doctor)`)
   const port = await app.start().catch(e => {
     console.error(`projium: ${e?.message ?? e}`)
     process.exit(1)
   })
+  try {
+    writeRun(c, port, c.file ?? configPath(here))
+  } catch (e) {
+    console.error(`projium: could not write ${runFile(c)}: ${e?.code ?? e?.message}`)
+  }
   console.log(`projium: http://127.0.0.1:${port} (${c.file ? `config ${c.file}` : 'no config file, showing the demo projects'})`)
 }

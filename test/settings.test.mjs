@@ -9,6 +9,7 @@ import { saveConfig } from '../lib/init.mjs'
 import { loadConfig } from '../lib/config.mjs'
 import { Conflict } from '../lib/store.mjs'
 import { createApp } from '../server.mjs'
+import { writeRun, stopServer } from '../lib/control.mjs'
 
 const rm = dir => fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 })
 const temp = (t, manual = false) => {
@@ -52,6 +53,10 @@ test('the settings view shows what the file says, where folders resolve, and hid
   assert.equal(v.effective.projectsDir.path, path.join(here, 'notes'))
   assert.equal(v.effective.projectsDir.state, 'ok')
   assert.equal(v.effective.layout, 'flat')
+  assert.equal(v.effective.projectsDir.shown, 0)
+  assert.equal(v.setupCommand, `node bin/projium.mjs setup --config "${file}"`)
+  fs.writeFileSync(path.join(here, 'notes', 'Acme.md'), '---\nstage: review\n---\n# Acme\n')
+  assert.equal(settingsView(here, file).effective.projectsDir.shown, 1)
   assert.equal(v.effective.channel, 'telegram')
   assert.deepEqual(v.telegram, { set: true, here: true })
   assert.equal(v.portFromEnv, true)
@@ -192,6 +197,55 @@ test('the settings API reads, writes with the hash, and flags a restart', async 
   assert.equal(saved.json.values.digestLang, 'ru')
   assert.ok(saved.json.backup)
   assert.equal((await call('POST', { hash: saved.json.hash, set: { projectsDir: '../missing' } })).status, 400)
+})
+
+test('stop finds the server started with the previous settings after the port and projects folder changed', async t => {
+  const dir = temp(t, true)
+  for (const d of ['a', 'b']) fs.mkdirSync(path.join(dir, d))
+  const file = path.join(dir, 'tracker.config.json')
+  fs.writeFileSync(file, JSON.stringify({ projectsDir: 'a', reposDir: '.', dbFile: 'data/t.db' }))
+  const old = loadConfig(dir, file)
+  let stopped = false
+  const app = createApp({ projectsRoot: old.projectsDir, reposRoot: dir, dbFile: path.join(dir, 'other', 't.db'), port: 0, checkHealth: false, onShutdown: () => app.stop().then(() => (stopped = true)) })
+  const port = await app.start()
+  t.after(async () => {
+    if (!stopped) await app.stop()
+    rm(dir)
+  })
+  fs.mkdirSync(path.join(dir, 'data'))
+  writeRun(old, port, file)
+  fs.writeFileSync(file, JSON.stringify({ projectsDir: 'b', reposDir: '.', dbFile: 'data/t.db', port: port === 65535 ? port - 1 : port + 1 }))
+  const r = await stopServer(dir, { file })
+  assert.equal(r.ok, true, r.error)
+  assert.equal(r.stopped, true)
+  assert.match(r.note, /previous settings/)
+  assert.equal(stopped, true)
+  writeRun({ ...old, projectsDir: path.join(dir, 'b') }, port, path.join(dir, 'another.json'))
+  assert.equal((await stopServer(dir, { file })).stopped, false)
+})
+
+test('the restart hint names the config file when it is not the default one', t => {
+  const { here, file } = fixture(t)
+  assert.equal(settingsView(here, file).restartCommand, `node bin/projium.mjs restart --config "${file}"`)
+  const own = path.join(here, 'tracker.config.json')
+  fs.copyFileSync(file, own)
+  assert.equal(settingsView(here, own).restartCommand, 'node bin/projium.mjs restart')
+})
+
+test('editing a target keeps the keys the form does not show, and drops the RPC when the chain changes', t => {
+  const { here, file } = fixture(t, { watch: { targets: [{ name: 'gas', kind: 'balance', chain: 'evm', address: `0x${'a'.repeat(40)}`, min: 0.1, unit: 'BNB', rpc: 'https://rpc.example/k', recoverAfter: 4, rpcEnv: 'BSC_RPC' }] } })
+  applySettings(here, file, { hash: settingsHash(file), watch: [{ op: 'update', name: 'gas', target: { name: 'gas', kind: 'balance', chain: 'evm', address: `0x${'a'.repeat(40)}`, min: '0.3', rpc: '' } }] })
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')).watch.targets[0], { unit: 'BNB', rpc: 'https://rpc.example/k', recoverAfter: 4, name: 'gas', kind: 'balance', chain: 'evm', address: `0x${'a'.repeat(40)}`, min: 0.3 })
+  applySettings(here, file, { hash: settingsHash(file), watch: [{ op: 'update', name: 'gas', target: { name: 'gas', kind: 'balance', chain: 'solana', address: '11111111111111111111111111111111', min: 1 } }] })
+  assert.equal('rpc' in JSON.parse(fs.readFileSync(file, 'utf8')).watch.targets[0], false)
+})
+
+test('a digest time is checked even when DIGEST_AT overrides it', t => {
+  const { here, file } = fixture(t)
+  fs.writeFileSync(envFileOf(file), 'DIGEST_AT=09:00\n')
+  const before = fs.readFileSync(file, 'utf8')
+  assert.throws(() => applySettings(here, file, { hash: settingsHash(file), set: { digestAt: '25:00' } }), /HH:MM/)
+  assert.equal(fs.readFileSync(file, 'utf8'), before)
 })
 
 test('the settings API is off when the server has no config file path', async t => {

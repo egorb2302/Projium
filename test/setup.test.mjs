@@ -5,7 +5,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { defaultConfigFile, obsidianVaults, noteFolders, repoFolders, guessStage, propose, runSetup } from '../lib/setup.mjs'
+import { Readable } from 'node:stream'
+import { defaultConfigFile, obsidianVaults, noteFolders, repoFolders, guessStage, propose, runSetup, lineReader, filterHint } from '../lib/setup.mjs'
 import { survey } from '../lib/survey.mjs'
 
 const repo = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
@@ -81,8 +82,48 @@ test('the proposal maps the owner fields from a survey and leaves Projium cards 
   assert.deepEqual(propose(survey(path.join(repo, 'demo', 'projects'))).cards, {})
 })
 
+test('setup stops with a hint instead of asking forever when stdin has ended', async t => {
+  const home = temp(t)
+  const here = temp(t)
+  const input = Readable.from([])
+  const output = { isTTY: false, written: 0, write() {
+    this.written++
+  } }
+  const io = lineReader(input, output)
+  await new Promise(r => setTimeout(r, 50))
+  await assert.rejects(runSetup({ here, file: path.join(here, 'c.json'), io, home, env: {}, platform: 'linux', port: 3299 }), /no folder given; pass --notes/)
+  assert.ok(output.written < 50, String(output.written))
+  assert.equal(fs.existsSync(path.join(here, 'c.json')), false)
+})
+
+test('a mixed notes folder gets a filter on the key its project notes share', async t => {
+  const home = temp(t)
+  const here = temp(t)
+  const notes = path.join(home, 'Notes')
+  for (const n of ['Acme', 'Beta', 'Gamma']) write(path.join(notes, `${n}.md`), `---\ntype: client-project\nstatus: active\n---\n# ${n}\n`)
+  write(path.join(notes, '2026-11-01.md'), '---\nstatus: draft\n---\n# day\n')
+  assert.deepEqual(filterHint(notes, 'status', false), { key: 'type', value: 'client-project', n: 3, out: 1 })
+  const r = await runSetup({ here, file: path.join(here, 'c.json'), io: { yes: true, say: () => {}, ask: async () => '' }, notes, home, env: {}, platform: 'linux', port: 3299 })
+  assert.deepEqual(r.config.cards.filter, { type: 'client-project' })
+  assert.equal(r.projects, 3)
+})
+
+test('the proposal skips headings and status words the config would refuse', () => {
+  const p = propose({
+    notes: 3,
+    layoutHint: 'flat',
+    keys: [{ key: 'status', notes: 3, values: [{ value: ' ', count: 1 }, { value: 'live', count: 2 }] }],
+    checkboxHeadings: [{ heading: 'Todo #2', level: 2, checkboxes: 5, usable: true }, { heading: 'Next', level: 2, checkboxes: 3, usable: true }],
+  })
+  assert.deepEqual(p.cards.stages, { live: 'development' })
+  assert.deepEqual(p.cards.sections, { tasks: 'Next' })
+})
+
 test('the config file lives in a clone, or in ~/.projium when Projium runs from npx', t => {
   const home = temp(t)
+  const zip = path.join(home, 'Projium-main')
+  fs.mkdirSync(zip)
+  assert.equal(defaultConfigFile(zip, { env: {}, home }), path.join(zip, 'tracker.config.json'))
   const clone = path.join(home, 'Projium')
   fs.mkdirSync(path.join(clone, '.git'), { recursive: true })
   const npx = path.join(home, 'npm-cache', '_npx', 'abc', 'node_modules', 'projium')
@@ -171,6 +212,15 @@ test('the projium command sets up from flags without questions and explains its 
   const bad = await cli(['setup', '--yes', '--no-start', '--notes', path.join(home, 'missing'), '--port', '3298', '--config', path.join(home, 'other.json')])
   assert.equal(bad.code, 1)
   assert.match(bad.out, /Setup stopped: folder not found/)
+})
+
+test('the projium command resolves relative paths from the folder npm was run in', async t => {
+  const { home } = world(t)
+  const r = await cli(['setup', '--notes', path.join('Vault', 'Work', 'Clients'), '--repos', 'code', '--port', '3296', '--yes', '--no-start', '--config', path.join('conf', 'c.json')], { env: { INIT_CWD: home, HOME: home, USERPROFILE: home } })
+  assert.equal(r.code, 0, r.out)
+  const c = JSON.parse(fs.readFileSync(path.join(home, 'conf', 'c.json'), 'utf8'))
+  assert.equal(c.projectsDir, path.join(home, 'Vault', 'Work', 'Clients').replace(/\\/g, '/'))
+  assert.equal(c.reposDir, path.join(home, 'code').replace(/\\/g, '/'))
 })
 
 test('the projium command answers setup questions read from a pipe', async t => {

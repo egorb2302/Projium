@@ -964,7 +964,7 @@ const targetForm = (old, names, save, cancel) => {
   const extra = h('div', { class: 'tform-kind' })
   const paint = () => extra.replaceChildren(...TARGET_KEYS[kind]
     .filter(k => k !== 'rpc' || inputs.chain?.value === 'evm' || (!inputs.chain && old?.chain === 'evm'))
-    .map(k => control(t(TARGET_LABELS[k]), field(k))))
+    .map(k => control(t(TARGET_LABELS[k]), field(k), k === 'rpc' ? note(t('wRpcNote')) : null)))
   paint()
   const go = h('button', {
     class: 'primary',
@@ -1063,7 +1063,8 @@ const renderSettings = async n => {
       s.restart ? h('section', { class: 'panel notice' }, h('p', {}, t('restartNeeded'), ' ', h('code', {}, s.restartCommand), ' ', h('span', { class: 'muted' }, t('restartOr')))) : null,
       s.error ? h('section', { class: 'panel notice bad' }, h('p', {}, t('configError', s.error))) : null,
       h('section', { class: 'panel' }, h('h2', {}, t('setFolders')),
-        control(t('setProjects'), proj, dirLine(e.projectsDir, e.layout ? t('layoutLine', e.layout) : null, v.projectsDir)),
+        control(t('setProjects'), proj, dirLine(e.projectsDir, [e.layout ? t('layoutLine', e.layout) : null, e.projectsDir?.shown != null ? t('shownN', e.projectsDir.shown) : null].filter(Boolean).join(' · '), v.projectsDir),
+          e.projectsDir?.shown === 0 ? h('p', { class: 'small warn-line' }, t('noneShown'), ' ', h('code', {}, s.setupCommand)) : null),
         control(t('setRepos'), repos, dirLine(e.reposDir, null, v.reposDir)),
         control(t('setTranscripts'), trans, dirLine(e.transcriptsDir, null, v.transcriptsDir))),
       h('section', { class: 'panel' }, h('h2', {}, t('setTime')),
