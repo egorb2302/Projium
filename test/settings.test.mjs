@@ -9,7 +9,7 @@ import { saveConfig } from '../lib/init.mjs'
 import { loadConfig } from '../lib/config.mjs'
 import { Conflict } from '../lib/store.mjs'
 import { createApp } from '../server.mjs'
-import { writeRun, stopServer, findServer } from '../lib/control.mjs'
+import { writeRun, stopServer, findServer, stopInstance, startBackground } from '../lib/control.mjs'
 import { instanceId } from '../lib/config.mjs'
 
 const rm = dir => fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 })
@@ -20,6 +20,15 @@ const temp = (t, manual = false) => {
 }
 
 const TOKEN = '123456789:AAHfakeTokenForTests_abcdefghijklmno'
+
+const unusedPort = () =>
+  new Promise(resolve => {
+    const probe = http.createServer()
+    probe.listen(0, '127.0.0.1', () => {
+      const { port } = probe.address()
+      probe.close(() => resolve(port))
+    })
+  })
 
 const fixture = (t, extra = {}, manual = false) => {
   const here = temp(t, manual)
@@ -215,7 +224,7 @@ test('stop finds the server started with the previous settings after the port an
   })
   fs.mkdirSync(path.join(dir, 'data'))
   writeRun(old, port, file)
-  fs.writeFileSync(file, JSON.stringify({ projectsDir: 'b', reposDir: '.', dbFile: 'data/t.db', port: port === 65535 ? port - 1 : port + 1 }))
+  fs.writeFileSync(file, JSON.stringify({ projectsDir: 'b', reposDir: '.', dbFile: 'data/t.db', port: await unusedPort() }))
   const r = await stopServer(dir, { file })
   assert.equal(r.ok, true, r.error)
   assert.equal(r.stopped, true)
@@ -258,16 +267,16 @@ test('setup finds only the dashboard of its own config, also when the path diffe
   for (const f of [a, b]) fs.writeFileSync(f, JSON.stringify({ projectsDir: 'notes', reposDir: '.', dbFile: 'data/t.db', port }))
   const meta = await (await fetch(`http://127.0.0.1:${port}/api/meta`)).json()
   assert.equal(meta.config, instanceId(a))
-  assert.deepEqual(await findServer(dir, a), { port, instance: instanceId(path.join(dir, 'notes')) })
+  assert.deepEqual(await findServer(dir, a), { port, instance: instanceId(path.join(dir, 'notes')), config: instanceId(a) })
   assert.equal(await findServer(dir, b), null)
   if (process.platform === 'win32') {
-    fs.writeFileSync(b, JSON.stringify({ projectsDir: 'notes', reposDir: '.', dbFile: 'data/t.db', port: port === 65535 ? port - 1 : port + 1 }))
+    fs.writeFileSync(b, JSON.stringify({ projectsDir: 'notes', reposDir: '.', dbFile: 'data/t.db', port: await unusedPort() }))
     writeRun(loadConfig(dir, b), port, a.toUpperCase())
     assert.equal((await findServer(dir, b)), null)
     writeRun({ ...loadConfig(dir, b), projectsDir: path.join(dir, 'notes') }, port, a.toUpperCase())
-    const c = { ...loadConfig(dir, a), port: port === 65535 ? port - 1 : port + 1 }
+    const c = { ...loadConfig(dir, a), port: await unusedPort() }
     fs.writeFileSync(a, JSON.stringify({ projectsDir: 'notes', reposDir: '.', dbFile: 'data/t.db', port: c.port }))
-    assert.deepEqual(await findServer(dir, a), { port, instance: instanceId(path.join(dir, 'notes')) })
+    assert.deepEqual(await findServer(dir, a), { port, instance: instanceId(path.join(dir, 'notes')), config: instanceId(a) })
   }
 })
 
@@ -277,6 +286,71 @@ test('a digest time is checked even when DIGEST_AT overrides it', t => {
   const before = fs.readFileSync(file, 'utf8')
   assert.throws(() => applySettings(here, file, { hash: settingsHash(file), set: { digestAt: '25:00' } }), /HH:MM/)
   assert.equal(fs.readFileSync(file, 'utf8'), before)
+})
+
+test('a dashboard of another config for the same folder is neither stopped nor taken for this one', async t => {
+  const dir = temp(t, true)
+  fs.mkdirSync(path.join(dir, 'notes'))
+  const a = path.join(dir, 'a.json')
+  const b = path.join(dir, 'b.json')
+  const app = createApp({ projectsRoot: path.join(dir, 'notes'), reposRoot: dir, dbFile: path.join(dir, 'data', 't.db'), port: 0, checkHealth: false, configFile: a, onShutdown: () => {} })
+  const port = await app.start()
+  t.after(async () => {
+    await app.stop()
+    rm(dir)
+  })
+  fs.writeFileSync(b, JSON.stringify({ projectsDir: 'notes', reposDir: '.', dbFile: 'data/t.db', port }))
+  const keepPort = process.env.PORT
+  process.env.PORT = String(port)
+  try {
+    const stop = await stopServer(dir, { file: b })
+    assert.equal(stop.ok, false)
+    assert.match(stop.error, /another config file/)
+    const start = await startBackground(dir, { file: b })
+    assert.equal(start.ok, false)
+    assert.match(start.error, /another config file/)
+  } finally {
+    if (keepPort === undefined) delete process.env.PORT
+    else process.env.PORT = keepPort
+  }
+  const post = body => fetch(`http://127.0.0.1:${port}/api/shutdown`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+  assert.equal((await post({ instance: instanceId(path.join(dir, 'notes')), config: instanceId(b) })).status, 409)
+  assert.equal((await post({ instance: 'another-folder' })).status, 409)
+  assert.equal((await (await fetch(`http://127.0.0.1:${port}/api/meta`)).json()).app, 'projium')
+})
+
+test('setup also finds and stops a dashboard from before 0.9.0, which does not report its config', async t => {
+  const dir = temp(t)
+  fs.mkdirSync(path.join(dir, 'notes'))
+  const instance = instanceId(path.join(dir, 'notes'))
+  const bodies = []
+  const old = http.createServer((req, res) => {
+    let s = ''
+    req.on('data', d => (s += d))
+    req.on('end', () => {
+      if (req.url === '/api/meta') return res.end(JSON.stringify({ app: 'projium', version: '0.8.0', instance }))
+      bodies.push(JSON.parse(s || '{}'))
+      res.end(JSON.stringify({ stopping: true }))
+      old.close()
+    })
+  })
+  await new Promise(r => old.listen(0, '127.0.0.1', r))
+  t.after(() => old.listening && old.close())
+  const port = old.address().port
+  const file = path.join(dir, 'c.json')
+  fs.writeFileSync(file, JSON.stringify({ projectsDir: 'notes', reposDir: '.', dbFile: 'data/t.db', port }))
+  const keepPort = process.env.PORT
+  process.env.PORT = String(port)
+  let found
+  try {
+    found = await findServer(dir, file)
+  } finally {
+    if (keepPort === undefined) delete process.env.PORT
+    else process.env.PORT = keepPort
+  }
+  assert.deepEqual(found, { port, instance, config: null })
+  assert.equal(await stopInstance(found, 3000), true)
+  assert.deepEqual(bodies, [{ instance }])
 })
 
 test('the settings API is off when the server has no config file path', async t => {

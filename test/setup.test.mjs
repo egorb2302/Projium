@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { Readable } from 'node:stream'
 import { defaultConfigFile, obsidianVaults, noteFolders, repoFolders, guessStage, propose, runSetup, lineReader, filterHint } from '../lib/setup.mjs'
 import { survey } from '../lib/survey.mjs'
+import { instanceId } from '../lib/config.mjs'
 
 const repo = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 
@@ -123,6 +124,16 @@ test('setup takes the next port when the same notes folder is served for another
   const r = await runSetup({ here, file, io: { yes: true, say: () => {}, ask: async () => '' }, notes, home, env: {}, platform: 'linux', probe })
   assert.equal(r.config.port, 3211)
   assert.deepEqual(asked, [3210, 3211])
+  const mine = async port => (port === 3210 ? { running: true, projium: true, sameInstance: false, config: instanceId(file) } : { running: false })
+  const again = await runSetup({ here, file, io: { yes: true, say: () => {}, ask: async () => 'y' }, notes, home, env: {}, platform: 'linux', probe: mine })
+  assert.equal(again.config.port, 3210)
+})
+
+test('the filter hint gives up on a folder too big to read whole', async t => {
+  const notes = path.join(temp(t), 'Vault')
+  fs.mkdirSync(notes)
+  for (let i = 0; i < 3000; i++) fs.writeFileSync(path.join(notes, `n${i}.md`), i < 3 ? '---\ntype: client\nstatus: active\n---\n' : i === 3 ? '---\nstatus: draft\n---\n' : '')
+  assert.equal(filterHint(notes, 'status', false), null)
 })
 
 test('the proposal skips headings and status words the config would refuse', () => {

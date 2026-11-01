@@ -339,8 +339,10 @@ export const createApp = ({
       if (parts[0] === 'api' && parts[1] === 'meta' && req.method === 'GET' && parts.length === 2)
         return send(res, 200, { app: 'projium', version: VERSION, instance: instanceId(projectsRoot), config: configFile ? instanceId(configFile) : null })
       if (parts[0] === 'api' && parts[1] === 'shutdown' && req.method === 'POST' && parts.length === 2) {
-        await readBody(req)
+        const body = await readBody(req)
         if (!onShutdown) return send(res, 404, { error: 'not found' })
+        if ((body.instance !== undefined && body.instance !== instanceId(projectsRoot)) || (body.config !== undefined && body.config !== (configFile ? instanceId(configFile) : null)))
+          return send(res, 409, { error: 'this Projium serves another projects folder or config; not stopping' })
         res.once('finish', () => setImmediate(onShutdown))
         return send(res, 200, { stopping: true })
       }
