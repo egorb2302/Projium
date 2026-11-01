@@ -2,6 +2,10 @@
 
 Versions follow [semantic versioning](https://semver.org); each one is a git tag (`v0.4.0`). After pulling a new version, restart the server (`npm run --silent stop`, then `npm run --silent start:bg`, or log in again with autostart).
 
+## Unreleased
+
+- The Edit button of a task is always shown (muted until you point at the task), so it is clear that tasks can be edited; it was invisible until hover.
+
 ## 0.7.0 (2026-11-01)
 
 - Tasks written by hand or by an agent can be checked off and edited from the dashboard. A trailing block id in any shape (`^t-1uz`, `^a1b2c3`) is now read as the task id and kept on edit. A line with no block id is addressed by its position `at` (API, MCP `toggle_task` and `edit_task`): a check flips only its box, and an edit rewrites it as `- [ ] text · due · p ^t-xxxx` with a new id. Task text may now contain ` · ` and `^`; it only must not end like a due date or priority it does not have.

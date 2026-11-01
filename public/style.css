@@ -330,8 +330,8 @@ button.primary:hover { background: #fff; border-color: #fff; }
 :is(.task, .upd-item) input[type=checkbox]:checked::before { opacity: 1; }
 :is(.task, .upd-item) input[type=checkbox]:hover { border-color: var(--accent); }
 :is(.task, .upd-item) input[type=checkbox]:disabled { cursor: default; opacity: 0.5; }
-.task button { height: 28px; padding: 0 10px; font-size: 12px; opacity: 0; }
-.task:hover button, .task button:focus-visible { opacity: 1; }
+.task button { height: 28px; padding: 0 10px; font-size: 12px; color: var(--dim); background: transparent; border-color: transparent; }
+.task:hover button, .task button:focus-visible { color: var(--text); background: var(--bg); border-color: var(--line-2); }
 .t-body { font-size: 13.5px; }
 .t-body .prio, .t-body .due { display: inline-block; margin-left: 6px; vertical-align: 1px; white-space: nowrap; }
 .task.done .t-text { color: var(--dim); text-decoration: line-through; }
