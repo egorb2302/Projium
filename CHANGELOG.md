@@ -5,7 +5,7 @@ Versions follow [semantic versioning](https://semver.org); each one is a git tag
 ## 0.11.0 (2026-11-01)
 
 - **Light theme:** a moon and sun switch next to RU and EN in the header. The choice is kept in the browser (`projium-theme`); dark stays the default. The light theme uses the paper, ink and amber of the Projium site.
-- A new logo: a P drawn as a constellation, one star of it amber. It replaces the old mark in the header, the favicon, the loading screen, the Windows shortcut icon (`assets/tracker.ico`) and client status pages.
+- A new logo: a P drawn as a constellation, one star of it amber. It replaces the old mark in the header, the favicon, the loading screen, the bundled `assets/tracker.ico` and client status pages.
 - Client status pages follow the viewer's system theme: light on a light system, dark otherwise.
 
 ## 0.10.0 (2026-11-01)
