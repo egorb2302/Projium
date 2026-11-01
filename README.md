@@ -54,6 +54,10 @@ Afterwards, everything else is in the dashboard:
 - **New project** on the list: creates a card in your notes folder from [the card template](docs/card-template.md), in your own layout, field names and status words. It never overwrites an existing note.
 - **From repos** in the same panel: lists the git repos in your repos folder that no card points at, and creates a card for each one you tick.
 
+![Settings](docs/screenshot-settings.png)
+
+![New project from repos](docs/screenshot-new.png)
+
 ## Let your AI agent set it up
 
 Paste this to Claude Code, Codex or any agent that can run commands on your computer:
