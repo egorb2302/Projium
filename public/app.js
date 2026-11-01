@@ -150,7 +150,7 @@ const skeleton = page =>
   page === 'project'
     ? [h('div', { class: 'sk-head' }, h('div', {}, h('i', { class: 'sk-title' }), h('i'), h('div', { class: 'sk-strip' })), h('b', { class: 'sk-cover' })),
       h('div', { class: 'cols' }, h('div', {}, skPanel(8), skPanel(4)), h('div', {}, skPanel(3), skPanel(6)))]
-    : page === 'time' || page === 'watch'
+    : page === 'time' || page === 'watch' || page === 'settings'
       ? [h('div', { class: 'sk-strip sk-kpis' }), skPanel(9), skPanel(12)]
       : [h('div', { class: 'sk-bar' }, h('i'), h('i'), h('i')), h('div', { class: 'grid' }, skCard(), skCard(), skCard(), skCard())]
 
@@ -208,8 +208,86 @@ const listTable = shown => h('div', { class: 'panel flush' }, h('div', { class: 
     return h('tr', { onclick: e => e.target.closest('a') || (location.hash = pageLink(p)) }, cells.map((c, i) => h('td', { class: LIST_COLS[i] || null }, c)))
   })))))
 
+let newOpen = false
+let newTouched = false
+let newTab = 'empty'
+
+const newPanel = info => {
+  const pattern = info.layout === 'flat' ? '<name>.md' : '<name>/<name>.md'
+  const body = h('div')
+  const TABS = ['empty', 'repos']
+  const tabs = TABS.map(k => h('button', { type: 'button', 'aria-pressed': String(newTab === k), onclick: () => ((newTab = k), paint()) }, t(k === 'empty' ? 'newEmpty' : 'newFromRepos'), k === 'repos' && info.repos.length ? h('span', { class: 'n' }, info.repos.length) : null))
+  const emptyForm = () => {
+    const name = h('input', { placeholder: t('newName'), 'aria-label': t('newName'), maxlength: 120, autocomplete: 'off' })
+    const stage = h('select', { 'aria-label': t('fields').stage }, STAGES.map(s => h('option', { value: s }, stageName(s))))
+    const next = h('input', { placeholder: t('newNext'), 'aria-label': t('newNext'), autocomplete: 'off' })
+    const go = h('button', {
+      class: 'primary',
+      onclick: async () => {
+        if (!name.value.trim()) return name.focus()
+        go.disabled = true
+        try {
+          const p = await api('/api/projects', { name: name.value, stage: stage.value, next_step: next.value })
+          toast(t('created', p.name))
+          newOpen = false
+          location.hash = pageLink(p)
+        } catch (e) {
+          toast(e.message, true)
+          go.disabled = false
+          name.focus()
+        }
+      },
+    }, t('create'))
+    name.addEventListener('keydown', e => e.key === 'Enter' && go.click())
+    setTimeout(() => name.focus())
+    return [h('div', { class: 'new-form' }, name, stage, next, go), h('p', { class: 'muted small' }, t('newHint', pattern))]
+  }
+  const reposForm = () => {
+    if (!info.repos.length) return h('p', { class: 'muted small' }, t('reposNone'))
+    const boxes = info.repos.map(r => h('input', { type: 'checkbox', value: r.name, onchange: () => sync() }))
+    const all = h('input', { type: 'checkbox', onchange: e => (boxes.forEach(b => (b.checked = e.target.checked)), sync()) })
+    const go = h('button', { class: 'primary', disabled: true })
+    const sync = () => {
+      const n = boxes.filter(b => b.checked).length
+      go.textContent = n ? t('createCards', n) : t('create')
+      go.disabled = !n
+      all.checked = n === boxes.length
+      all.indeterminate = n > 0 && n < boxes.length
+    }
+    go.addEventListener('click', async () => {
+      go.disabled = true
+      try {
+        const r = await api('/api/repos/cards', { repos: boxes.filter(b => b.checked).map(b => b.value) })
+        toast(t('createdCards', r.created.length, r.failed.length) + (r.failed.length ? `: ${r.failed[0].name} (${r.failed[0].error})` : ''), r.failed.length > 0)
+        newOpen = !r.created.length
+        route()
+      } catch (e) {
+        toast(e.message, true)
+        sync()
+      }
+    })
+    sync()
+    return [
+      h('p', { class: 'muted small' }, t('reposHint', info.repos.length)),
+      h('label', { class: 'repo-row all' }, all, h('span', {}, t('selectAll'))),
+      h('div', { class: 'repo-list' }, info.repos.map((r, i) => h('label', { class: 'repo-row' }, boxes[i], h('span', { class: 'mono' }, r.name), r.active ? h('span', { class: 'muted small' }, t('active', dayText(r.active))) : null))),
+      h('div', { class: 'row-btns' }, go),
+    ]
+  }
+  const paint = () => {
+    tabs.forEach((b, i) => b.setAttribute('aria-pressed', String(TABS[i] === newTab)))
+    body.replaceChildren(...[newTab === 'empty' ? emptyForm() : reposForm()].flat())
+  }
+  paint()
+  return h('section', { class: 'panel newp' },
+    h('h2', { class: 'row' }, h('span', {}, t('newProject')), h('div', { class: 'seg', role: 'group', 'aria-label': t('newProject') }, tabs)),
+    body)
+}
+
 const renderList = async n => {
   const all = await api('/api/projects')
+  if (!all.length && !newTouched) newOpen = true
+  const repoInfo = newOpen ? await api('/api/repos').catch(() => null) : null
   if (n !== seq) return
   const broken = all.filter(p => p.error)
   const projects = all.filter(p => !p.error)
@@ -224,7 +302,7 @@ const renderList = async n => {
       .filter(p => !q || [p.name, p.fields.next_step, p.fields.status].some(v => String(v ?? '').toLowerCase().includes(q)))
       .sort(Object.hasOwn(SORTS, sortBy) ? SORTS[sortBy] : SORTS.urgent)
     count.textContent = t('countOf', shown.length, projects.length)
-    body.replaceChildren(!shown.length ? h('p', { class: 'muted empty' }, t('noMatches')) : view === 'table' ? listTable(shown) : h('div', { class: 'grid' }, shown.map(card)))
+    body.replaceChildren(!projects.length ? h('p', { class: 'muted empty' }, t('noProjects')) : !shown.length ? h('p', { class: 'muted empty' }, t('noMatches')) : view === 'table' ? listTable(shown) : h('div', { class: 'grid' }, shown.map(card)))
   }
   const chips = ['open', 'done', 'all'].map(k => h('button', {
     class: `chip${cur === k ? ' on' : ''}`,
@@ -251,11 +329,30 @@ const renderList = async n => {
       paint()
     },
   }, t('views')[k]))
+  const slot = h('div')
+  const fill = info => slot.replaceChildren(newOpen && info ? newPanel(info) : '')
+  const addBtn = h('button', {
+    class: 'primary add-btn',
+    'aria-expanded': String(newOpen),
+    onclick: async () => {
+      newOpen = !newOpen
+      newTouched = true
+      addBtn.setAttribute('aria-expanded', String(newOpen))
+      if (!newOpen) return fill(null)
+      try {
+        fill(await api('/api/repos'))
+      } catch (e) {
+        toast(e.message, true)
+      }
+    },
+  }, t('newProject'))
+  fill(repoInfo)
   render(
     attention(projects),
     h('div', { class: 'bar' },
       h('div', { class: 'bar-l' }, chips, h('label', { class: 'search' }, search, h('kbd', {}, '/'))),
-      h('div', { class: 'bar-r' }, count, sorter, h('div', { class: 'seg', role: 'group', 'aria-label': t('viewLabel') }, views))),
+      h('div', { class: 'bar-r' }, count, sorter, h('div', { class: 'seg', role: 'group', 'aria-label': t('viewLabel') }, views), addBtn)),
+    slot,
     broken.length ? h('p', { class: 'muted small' }, t('couldNotRead', broken.map(b => `${b.name} (${b.error})`).join(', '))) : null,
     body)
   paint()
@@ -837,7 +934,161 @@ const renderWatch = async n => {
   draw(first)
 }
 
-const NAV = { list: 'navProjects', time: 'navTime', watch: 'navWatch' }
+let fieldSeq = 0
+const control = (label, el, ...notes) => {
+  const target = el.matches('input, select, textarea') ? el : el.querySelector('input, select, textarea')
+  target.id ||= `s-${++fieldSeq}`
+  return h('div', { class: 'srow' }, h('label', { for: target.id }, label), h('div', { class: 'sctl' }, el, ...notes.filter(Boolean)))
+}
+const note = text => h('p', { class: 'muted small' }, rich(text))
+const samePath = (a, b) => String(a ?? '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase() === String(b ?? '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+const dirLine = (d, extra, raw) => (d
+  ? h('p', { class: 'small dirline' }, h('span', { class: `dot ${d.state === 'ok' ? 'ok' : 'bad'}` }), d.state === 'ok' ? t('folderOk') : d.state === 'missing' ? t('folderMissing') : t('folderNot'), extra ? h('span', { class: 'muted' }, ` · ${extra}`) : null, samePath(raw, d.path) ? null : h('span', { class: 'mono muted' }, d.path))
+  : null)
+
+const TARGET_KEYS = { site: ['url', 'certDays'], heartbeat: ['url', 'field', 'maxAgeMin'], balance: ['chain', 'address', 'min', 'rpc', 'rpcEnv'] }
+const TARGET_LABELS = { url: 'wUrl', certDays: 'wCert', field: 'wField', maxAgeMin: 'wMaxAge', chain: 'wChain', address: 'wAddress', min: 'wMin', rpc: 'wRpc', rpcEnv: 'wRpcEnv' }
+
+const targetForm = (old, names, save, cancel) => {
+  let kind = old?.kind ?? 'site'
+  const name = h('input', { value: old?.name ?? '', maxlength: 64, spellcheck: 'false' })
+  const kindSel = h('select', { class: 'narrow', onchange: e => ((kind = e.target.value), paint()) },['site', 'heartbeat', 'balance'].map(k => h('option', { value: k, selected: k === kind }, t('kinds')[k])))
+  const listId = `projects-${++fieldSeq}`
+  const project = h('input', { value: old?.project ?? '', list: listId, spellcheck: 'false' })
+  const inputs = {}
+  const field = key => {
+    if (key === 'chain') return (inputs[key] ||= h('select', { class: 'narrow', onchange: paint }, ['solana', 'evm'].map(c => h('option', { value: c, selected: c === (old?.chain ?? 'solana') }, c))))
+    const numeric = ['certDays', 'maxAgeMin', 'min'].includes(key)
+    return (inputs[key] ||= h('input', { value: old?.[key] ?? (key === 'certDays' && !old ? '14' : ''), type: numeric ? 'number' : 'text', class: numeric || key === 'rpcEnv' ? 'narrow' : key === 'field' ? 'mono' : null, step: key === 'min' ? 'any' : '1', min: '0', spellcheck: 'false', placeholder: key === 'rpc' && old?.rpcSet ? t('wRpcSet') : key === 'url' ? 'https://' : key === 'field' ? 'lastRunAt' : key === 'rpcEnv' ? 'SOLANA_RPC_URL' : null }))
+  }
+  const extra = h('div', { class: 'tform-kind' })
+  const paint = () => extra.replaceChildren(...TARGET_KEYS[kind]
+    .filter(k => k !== 'rpc' || inputs.chain?.value === 'evm' || (!inputs.chain && old?.chain === 'evm'))
+    .map(k => control(t(TARGET_LABELS[k]), field(k))))
+  paint()
+  const go = h('button', {
+    class: 'primary',
+    onclick: () => {
+      const target = { name: name.value, kind, project: project.value }
+      for (const k of TARGET_KEYS[kind]) if (inputs[k] && (k !== 'rpc' || inputs.chain?.value === 'evm')) target[k] = inputs[k].value
+      save(target)
+    },
+  }, old ? t('saveTarget') : t('addTarget'))
+  return h('div', { class: 'tform' },
+    h('h3', { class: 'sub' }, old ? t('editTarget', old.name) : t('addTarget')),
+    h('datalist', { id: listId }, names.map(n => h('option', { value: n }))),
+    h('div', { class: 'tform-top' }, control(t('wName'), name), control(t('wKind'), kindSel), control(t('wProject'), project)),
+    extra,
+    h('div', { class: 'row-btns' }, go, cancel ? h('button', { onclick: cancel }, t('cancel')) : null))
+}
+
+const renderSettings = async n => {
+  let first
+  try {
+    first = await api('/api/settings')
+  } catch (e) {
+    if (e.status === 404) return render(h('section', { class: 'panel' }, h('h2', {}, t('navSettings')), h('p', { class: 'muted' }, t('noSettings'))))
+    throw e
+  }
+  const names = (await api('/api/projects').catch(() => [])).filter(p => !p.error).map(p => p.name)
+  if (n !== seq) return
+  let editing = null
+  const draw = (s, saved) => {
+    if (n !== seq) return
+    const v = s.values
+    const e = s.effective ?? {}
+    const inp = (value, attrs = {}) => h('input', { value: value ?? '', spellcheck: 'false', autocomplete: 'off', ...attrs })
+    const proj = inp(v.projectsDir, { placeholder: e.projectsDir?.path ?? '' })
+    const repos = inp(v.reposDir, { placeholder: e.reposDir?.path ?? '' })
+    const trans = inp(v.transcriptsDir, { placeholder: t('setTranscriptsPh') })
+    const zone = inp(v.utcOffset, { placeholder: e.utcOffset ?? s.computerOffset, pattern: '[+-][0-9]{2}:[0-9]{2}', class: 'mono narrow' })
+    const at = inp(v.digestAt || e.digestAt || '10:00', { type: 'time', class: 'narrow' })
+    const lang = h('select', { class: 'narrow' }, ['en', 'ru'].map(l => h('option', { value: l, selected: l === (v.digestLang || e.digestLang || 'en') }, l === 'ru' ? 'Русский' : 'English')))
+    const port = inp(v.port, { type: 'number', min: '1', max: '65535', placeholder: String(e.port ?? 3210), class: 'narrow' })
+    const token = inp('', { type: 'password', placeholder: s.telegram.set ? t('tgTokenSet') : '123456:ABC…', autocomplete: 'new-password' })
+    const chat = inp('', { placeholder: s.telegram.set ? t('tgChatSet') : '123456789', class: 'mono' })
+    const cmd = inp(v.digestCommand ? JSON.stringify(v.digestCommand) : '', { class: 'mono', placeholder: '["node", "send.mjs", "--text"]' })
+    const post = async (body, okText) => {
+      try {
+        const r = await api('/api/settings', { hash: s.hash, ...body })
+        editing = null
+        draw(r, !body.watch)
+        toast(okText ?? t('savedTo', r.file, r.backup ? r.backup.split(/[\\/]/).pop() : null))
+      } catch (err) {
+        toast(err.message, true)
+        if (err.status === 409) route()
+      }
+    }
+    const save = () => {
+      const set = {}
+      const diff = (k, el, initial) => el.value.trim() !== String(initial ?? '').trim() && (set[k] = el.value.trim())
+      diff('projectsDir', proj, v.projectsDir)
+      diff('reposDir', repos, v.reposDir)
+      diff('transcriptsDir', trans, v.transcriptsDir)
+      diff('utcOffset', zone, v.utcOffset)
+      diff('port', port, v.port)
+      if (at.value !== (v.digestAt || e.digestAt || '10:00')) set.digestAt = at.value
+      if (lang.value !== (v.digestLang || e.digestLang || 'en')) set.digestLang = lang.value
+      const cmdText = cmd.value.trim()
+      if (cmdText !== (v.digestCommand ? JSON.stringify(v.digestCommand) : '')) {
+        if (!cmdText) set.digestCommand = null
+        else
+          try {
+            const list = JSON.parse(cmdText)
+            if (!Array.isArray(list) || !list.length || !list.every(x => typeof x === 'string')) throw new Error()
+            set.digestCommand = list
+          } catch {
+            cmd.classList.add('err')
+            return toast(t('cmdBad'), true)
+          }
+      }
+      const body = { set }
+      if (token.value.trim() || chat.value.trim()) body.telegram = { token: token.value.trim(), chatId: chat.value.trim() }
+      if (!Object.keys(set).length && !body.telegram) return toast(t('nothingChanged'))
+      post(body)
+    }
+    const targetRow = x => h('div', { class: 'trow' },
+      h('div', { class: 'trow-main' },
+        h('b', {}, x.name),
+        h('span', { class: 'pill off' }, t('kinds')[x.kind] ?? x.kind),
+        x.project ? h('span', { class: 'muted small' }, x.project) : null),
+      h('span', { class: 'mono muted small trow-what' }, x.url ?? (x.address ? `${x.chain ?? 'solana'} ${shortAddr(x.address)} < ${x.min}` : '')),
+      h('div', { class: 'row-btns' },
+        h('button', { onclick: () => ((editing = x.name), draw(s)) }, t('edit')),
+        h('button', { onclick: () => confirm(t('removeAsk', x.name)) && post({ watch: [{ op: 'remove', name: x.name }] }, t('removed', x.name)) }, t('removeT'))))
+    const editor = editing == null
+      ? targetForm(null, names, target => post({ watch: [{ op: 'add', target }] }), null)
+      : targetForm(s.watch.find(x => x.name === editing), names, target => post({ watch: [{ op: 'update', name: editing, target }] }), () => ((editing = null), draw(s)))
+    render(
+      s.restart ? h('section', { class: 'panel notice' }, h('p', {}, t('restartNeeded'), ' ', h('code', {}, s.restartCommand), ' ', h('span', { class: 'muted' }, t('restartOr')))) : null,
+      s.error ? h('section', { class: 'panel notice bad' }, h('p', {}, t('configError', s.error))) : null,
+      h('section', { class: 'panel' }, h('h2', {}, t('setFolders')),
+        control(t('setProjects'), proj, dirLine(e.projectsDir, e.layout ? t('layoutLine', e.layout) : null, v.projectsDir)),
+        control(t('setRepos'), repos, dirLine(e.reposDir, null, v.reposDir)),
+        control(t('setTranscripts'), trans, dirLine(e.transcriptsDir, null, v.transcriptsDir))),
+      h('section', { class: 'panel' }, h('h2', {}, t('setTime')),
+        control(t('setZone'), h('div', { class: 'inline' }, zone, h('button', { type: 'button', onclick: () => (zone.value = s.computerOffset) }, t('useComputer', s.computerOffset)))),
+        control(t('setDigestAt'), at),
+        control(t('setLang'), lang),
+        control(t('setPort'), port, s.portFromEnv ? note(t('portEnv')) : null)),
+      h('section', { class: 'panel' }, h('h2', { class: 'row' }, h('span', {}, t('setChannel')),
+        h('span', { class: `pill ${e.channel === 'none' ? 'off' : 'ok'}` }, e.channel === 'telegram' ? t('chTelegram') : e.channel === 'command' ? t('chCommand') : t('chNone'))),
+        e.channel === 'none' ? note(t('chNoneNote')) : null,
+        control(t('tgToken'), token, s.telegram.set && !s.telegram.here ? note(t('tgElsewhere')) : null),
+        control(t('tgChat'), chat, note(t('tgNote', s.envFile)),
+          s.telegram.here ? h('button', { onclick: () => confirm(t('tgRemoveAsk')) && post({ telegram: null }) }, t('tgRemove')) : null),
+        control(t('cmdLabel'), cmd, note(t('cmdNote')))),
+      h('div', { class: 'save-bar' }, h('button', { class: 'primary', onclick: save }, t('saveSettings')), h('span', { class: 'muted small' }, t('backupNote', s.file))),
+      h('section', { class: 'panel' }, h('h2', {}, t('setWatch')),
+        s.watch.length ? h('div', { class: 'trows' }, s.watch.map(targetRow)) : h('p', { class: 'muted small' }, t('watchEmpty')),
+        editor,
+        note(t('watchSetNote'))))
+    if (saved) window.scrollTo({ top: 0 })
+  }
+  draw(first)
+}
+
+const NAV = { list: 'navProjects', time: 'navTime', watch: 'navWatch', settings: 'navSettings' }
 
 const chrome = page => {
   document.documentElement.lang = getLang()
@@ -850,7 +1101,7 @@ const chrome = page => {
 
 const route = async () => {
   const hash = location.hash || '#/'
-  const page = hash.startsWith('#/p/') ? 'project' : hash === '#/time' ? 'time' : hash === '#/watch' ? 'watch' : 'list'
+  const page = hash.startsWith('#/p/') ? 'project' : hash === '#/time' ? 'time' : hash === '#/watch' ? 'watch' : hash === '#/settings' ? 'settings' : 'list'
   chrome(page)
   document.getElementById('path').textContent = page === 'project' ? decodeURIComponent(hash.slice(4)) : t(NAV[page] ?? 'navProjects')
   const n = ++seq
@@ -860,6 +1111,7 @@ const route = async () => {
     if (page === 'project') await renderProject(decodeURIComponent(hash.slice(4)), n)
     else if (page === 'time') await renderTime(n)
     else if (page === 'watch') await renderWatch(n)
+    else if (page === 'settings') await renderSettings(n)
     else await renderList(n)
   } catch (e) {
     if (n === seq) render(h('p', { class: 'muted' }, t('couldNotLoad', e.message)))
@@ -937,6 +1189,7 @@ window.addEventListener('keydown', e => {
   if (e.key === '1') location.hash = '#/'
   if (e.key === '2') location.hash = '#/time'
   if (e.key === '3') location.hash = '#/watch'
+  if (e.key === '4') location.hash = '#/settings'
   const search = document.getElementById('search')
   if (e.key === '/' && search) {
     e.preventDefault()

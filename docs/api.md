@@ -81,6 +81,18 @@ The item at that position becomes `- [x] ` (or `- [ ] ` with `"done": false`); t
 
 **Recheck now:** `POST /api/projects/<name>/refresh` with `{}` re-reads git, the live site and transcripts for that card.
 
+**Create a card:** `POST /api/projects`
+
+```json
+{ "name": "Acme Shop", "stage": "development", "next_step": "Kick-off call" }
+```
+
+Creates a new note from [card-template.md](card-template.md) in the owner's layout: `<name>/<name>.md` with the folder layout, `<name>.md` with `cards.layout "flat"`. It uses the owner's keys and stage words from `cards`, adds the `cards.filter` keys so the note counts as a project, and names the task, update and timeline sections as `cards.sections` says. `stage` (default `development`) and `next_step` are optional. Returns the card as `GET /api/projects/<name>` does. `409` when a note or project with that name exists (nothing is written); `400` for a name that is not a safe file name (letters, digits, spaces and `. _ ( ) -`, up to 120 characters).
+
+**Repos without a card:** `GET /api/repos` returns `{ layout, repos }`: the git repos directly in `reposDir` that no card points at (by name, `repo:` key, `cards.repos` or a repo path in the note), minus ignored ones, as `{ name, active }` (folder name and when its `.git` folder last changed, epoch ms), most recently active first. No paths.
+
+`POST /api/repos/cards` with `{ "repos": ["helios-bridge", "nova-landing"], "stage": "development" }` creates a card named like each repo folder; only names from that list are accepted. Returns `{ created: [names], failed: [{ name, error }] }`.
+
 **Send the digest now:** `POST /api/digest/send` with `{}`. `409` when no channel is configured or a send is in progress.
 
 **Stop the server:** `POST /api/shutdown` with `{}`, which is what `npm run stop` uses. Returns `{ "stopping": true }`; `404` when the server was not started from the command line (`npm start`, `start:bg`, autostart).
@@ -98,6 +110,35 @@ Launch Watch ([watch.md](watch.md)): sites, heartbeats and wallet balances from 
 **Check now:** `POST /api/watch/check` with `{}` runs a round and returns the same as `GET /api/watch`; `409` when no targets are configured.
 
 **Mute:** `POST /api/watch/mute` with `{ "target": "shop", "until": 1793540000000 }` (epoch ms, within 30 days) or `"until": null` to unmute. `404` for an unknown target, `400` for a time in the past or too far ahead.
+
+## Settings
+
+The Settings page reads and writes the config file the server was started with.
+
+`GET /api/settings` returns:
+
+- `file`, `exists`, `hash` (send it back with a write), `restart` (`true` when the config or the `.env.local` next to it changed since the server started), `restartCommand`, `error` (when the file does not load);
+- `values`: the keys as written in the file (`projectsDir`, `reposDir`, `transcriptsDir`, `port`, `utcOffset`, `digestAt`, `digestLang`, `digestCommand`), `""` when not set;
+- `effective`: what the server would use, with each folder's resolved `path` and `state` (`ok`, `missing`, `not a folder`), and the digest `channel` (`telegram`, `command`, `none`);
+- `telegram`: `{ set, here }`, whether a bot token and chat id are set at all and whether they are in the `.env.local` next to the config (never the values);
+- `watch`: the Launch Watch targets as written, with `rpc` replaced by `rpcSet: true`.
+
+`POST /api/settings` changes what it names and keeps the rest of the file:
+
+```json
+{
+  "hash": "from the GET",
+  "set": { "projectsDir": "C:/Notes/Projects", "utcOffset": "+03:00", "digestLang": "ru", "digestCommand": null },
+  "telegram": { "token": "123456:ABC...", "chatId": "123456789" },
+  "watch": [
+    { "op": "add", "target": { "name": "shop", "kind": "site", "url": "https://shop.example" } },
+    { "op": "update", "name": "keeper", "target": { "name": "keeper", "kind": "heartbeat", "url": "https://api.example/health", "field": "lastRunAt", "maxAgeMin": 20 } },
+    { "op": "remove", "name": "old-site" }
+  ]
+}
+```
+
+Every part is optional. `""` (or `null` for `digestCommand`) removes a key; the projects folder cannot be removed. Folders must exist (the transcripts folder may not). `telegram` writes `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` into the `.env.local` next to the config, keeping its other lines; `"telegram": null` removes them. An `update` keeps target keys the form does not show (`failAfter`, `activeWhen`, `max`, and `rpc` when none is sent) unless the kind changes. The new config is validated as a whole before anything is written; it is written atomically, and the previous file is kept as `tracker.config.json.bak-<time>` (the 10 newest of those are kept). Returns the same as the GET plus `backup`. `409` when the file changed since `hash` was read, `400` with the reason when the result would not load, `404` when the server was started without a config file path (tests).
 
 ## Example
 

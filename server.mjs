@@ -4,7 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createStore, Conflict, publicError } from './lib/store.mjs'
 import { validate, EDITABLE } from './lib/card.mjs'
-import { repoOf, declaredRepos, readiness, freshness, updateFlags, releasePlan, updateBranches, ogImage } from './lib/repo.mjs'
+import { repoOf, declaredRepos, readiness, freshness, updateFlags, releasePlan, updateBranches, ogImage, uncardedRepos } from './lib/repo.mjs'
 import { fetchConfig, updateStatus } from './lib/prod.mjs'
 import { createTimeCache, projectSplit, cardTime } from './lib/timesplit.mjs'
 import { openDb, checkSite, recordHealth, healthSummary, pruneHealth } from './lib/health.mjs'
@@ -12,7 +12,8 @@ import { buildDigest, digestSender, commandSender, isDue, parseAt, localDay } fr
 import { createWatch } from './lib/watch.mjs'
 import { request } from './lib/net.mjs'
 import { createStreak } from './lib/streak.mjs'
-import { loadConfig, ignoreTest, formatOffset, instanceId } from './lib/config.mjs'
+import { loadConfig, ignoreTest, formatOffset, instanceId, configPath } from './lib/config.mjs'
+import { settingsView, applySettings, settingsHash } from './lib/settings.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 
@@ -66,7 +67,9 @@ export const createApp = ({
   watchLang = null,
   watchGet = request,
   onShutdown = null,
+  configFile = null,
 } = {}) => {
+  const startHash = configFile ? settingsHash(configFile) : null
   const digestMinutes = parseAt(digestAt)
   if (digestMinutes == null) throw new Error(`digest time must be HH:MM, got ${digestAt}`)
   const ignored = ignoreTest(ignore)
@@ -361,6 +364,42 @@ export const createApp = ({
         await watcher.tick()
         return send(res, 200, watcher.status())
       }
+      if (parts[0] === 'api' && parts[1] === 'settings' && parts.length === 2) {
+        if (!configFile) return send(res, 404, { error: 'settings are not available in this run' })
+        if (req.method === 'GET') return send(res, 200, settingsView(here, configFile, startHash))
+        if (req.method === 'POST') {
+          const r = applySettings(here, configFile, await readBody(req))
+          return send(res, 200, { ...settingsView(here, configFile, startHash), backup: r.backup })
+        }
+      }
+      if (parts[0] === 'api' && parts[1] === 'repos' && req.method === 'GET' && parts.length === 2)
+        return send(res, 200, { layout: cards.layout ?? 'folder', repos: uncardedRepos(reposRoot, store.list().filter(c => !c.error), ignored) })
+      if (parts[0] === 'api' && parts[1] === 'repos' && parts[2] === 'cards' && req.method === 'POST' && parts.length === 3) {
+        const body = await readBody(req)
+        if (body.instance !== undefined && body.instance !== instanceId(projectsRoot)) return send(res, 421, { error: 'this Projium serves another projects folder; nothing was written' })
+        const names = Array.isArray(body.repos) ? body.repos : []
+        if (!names.length || names.length > 200 || !names.every(n => typeof n === 'string')) return send(res, 400, { error: 'repos must be a list of 1 to 200 repo folder names' })
+        const open = new Set(uncardedRepos(reposRoot, store.list().filter(c => !c.error), ignored).map(r => r.name))
+        const created = []
+        const failed = []
+        for (const name of names) {
+          if (!open.has(name)) {
+            failed.push({ name, error: 'not a repo without a card in the repos folder' })
+            continue
+          }
+          try {
+            created.push(store.create(name, { stage: body.stage }).name)
+          } catch (e) {
+            failed.push({ name, error: publicError(e) })
+          }
+        }
+        return send(res, 200, { created, failed })
+      }
+      if (parts[0] === 'api' && parts[1] === 'projects' && req.method === 'POST' && parts.length === 2) {
+        const body = await readBody(req)
+        if (body.instance !== undefined && body.instance !== instanceId(projectsRoot)) return send(res, 421, { error: 'this Projium serves another projects folder; nothing was written' })
+        return send(res, 200, await view(store.create(body.name, { stage: body.stage, next_step: body.next_step }), true))
+      }
       if (parts[0] === 'api' && parts[1] === 'projects' && req.method === 'GET' && parts.length === 2)
         return send(res, 200, await Promise.all(store.list().map(c => (c.error ? c : view(c)))))
       if (parts[0] === 'api' && parts[1] === 'projects' && parts[2] && req.method === 'GET' && parts.length === 3)
@@ -475,6 +514,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     watchLang: c.watch?.lang,
     sendAlert: c.watch?.command ? commandSender(c.watch.command, 'alert command') : digestSender(c.digest),
     streak: c.streak,
+    configFile: c.file ?? configPath(here),
     onShutdown: () => app.stop().finally(() => process.exit(0)),
   })
   if (c.unknownKeys.length) console.error(`config: unknown keys ignored: ${c.unknownKeys.join(', ')} (run npm run --silent doctor)`)

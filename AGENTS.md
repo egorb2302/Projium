@@ -29,7 +29,9 @@ npm test
 
 Check: the summary at the end says `ℹ fail 0`. Some tests print failure-looking log lines (for example `streak failed`) on purpose; only the summary counts. The tests create and delete folders under the system temp folder and run git there; on Windows keep `TEMP` at its usual short path, or git may fail with "Filename too long". No `npm install` is needed.
 
-If a `tracker.config.json` already exists in the folder, Projium is set up already: run `npm run --silent doctor` (step 5) and fix what it reports instead of starting over.
+If a `tracker.config.json` already exists in the folder, Projium is set up already: run `npm run --silent doctor` (step 5) and fix what it reports instead of starting over. The owner may also have run the setup wizard themselves (`npx github:egorb2302/Projium` or `npm run setup`, see the README): through npx the config is `~/.projium/tracker.config.json`; point the commands below at it with `TRACKER_CONFIG=<that file>`, or use `npx github:egorb2302/Projium doctor`.
+
+This playbook uses `init` with flags, which asks nothing; `npm run setup` is the same job as questions for a person at the keyboard, so do not run it yourself.
 
 ## 2. Connect the owner's notes
 
@@ -79,7 +81,7 @@ Keys with spaces cannot be mapped. Date and time formats are read as they are (`
 
 **Repos.** A project is matched to a folder in `reposDir` with its name, ignoring case, spaces and punctuation (`Acme Shop` finds `acme-shop`). For other names, add them to the config, no note edits needed: `"repos": { "Nebula Wallet": "nebula", "Old Blog": "none" }` (`none` for projects without code). A `repo:` key in the note wins over that; a backticked path after `Repo` in the note body also works. Notes often name the repo in prose (`Code: ~/src/lumen-site`, a GitHub URL): read it, find the local clone, confirm a URL with `git -C <clone> remote get-url origin` when the clone has a remote, and put it into `cards.repos`. `~` means the home folder of the user who runs Projium.
 
-**When the config is not enough** (projects live in a database or a single list note, or the owner wants Projium's own cards): create a new folder, for example `<vault>/Projium/`, with one card per project from [docs/card-template.md](docs/card-template.md), owner's yes first. Link each card to its source note with a full vault path (`Source note: [[Work/Clients/Acme Shop|Acme Shop]]`), record where each time came from in its `## Timeline`, and tell the owner that status and tasks now live in the cards.
+**When the config is not enough** (projects live in a database or a single list note, or the owner wants Projium's own cards): create a new folder, for example `<vault>/Projium/`, with one card per project from [docs/card-template.md](docs/card-template.md), owner's yes first. Once the server runs, `POST /api/projects` with `{ "name", "stage", "next_step" }` creates a card the same way the dashboard's New project button does (owner layout, field keys and stage words, never over an existing note), and `GET /api/repos` lists repos in `reposDir` that no card points at ([docs/api.md](docs/api.md)). Link each card to its source note with a full vault path (`Source note: [[Work/Clients/Acme Shop|Acme Shop]]`), record where each time came from in its `## Timeline`, and tell the owner that status and tasks now live in the cards.
 
 ## 3. Find the repos
 
@@ -98,7 +100,8 @@ npm run --silent init -- --projects "<absolute projectsDir>" --repos "<absolute 
 - The `cards` part from step 2: `--layout flat`, `--recursive`, `--filter type=client-project` (repeat for more values), `--field stage=status` (repeat per field), `--stage "in progress=development"` (repeat per word), `--tasks-heading Todo`, `--name folder`, `--repo "Nebula Wallet=nebula"` (repeat per project), `--field-off site` (repeat per field; writes `"site": null`). Or write the whole `cards` part into the JSON by hand afterwards.
 - `--transcripts` matters more than it looks: the default `~/.claude/projects` is the transcripts folder of the user running Projium. If that is not the owner's Claude Code user, or the owner keeps Claude Code data elsewhere (`CLAUDE_CONFIG_DIR`), pass the `projects` folder inside the owner's Claude Code data folder.
 - `--stage` and `--repo` split at the last `=`, so an owner word may contain `=`.
-- Also: `--port`, `--readiness` (`"{name} readiness.md"` for the flat layout), `--lang en|ru`, `--ignore word1,word2` (projects whose name or repo path contains a word: no repo reads, no site checks), `--force` (replaces an existing config with only these flags; the old file is kept as `tracker.config.json.bak-<time>`, never overwritten).
+- Later changes to folders, the zone, the digest and Launch Watch targets can also be made by the owner on the dashboard's Settings page (key `4`). It writes the same file, keeps the previous version as `.bak-<time>` (the last 10 timestamped backups are kept) and needs a restart to apply.
+- Also: `--port`, `--readiness` (`"{name} readiness.md"` for the flat layout), `--lang en|ru`, `--ignore word1,word2` (projects whose name or repo path contains a word: no repo reads, no site checks), `--force` (replaces an existing config with only these flags; the old file is kept as `tracker.config.json.bak-<time>`, never overwritten; the 10 newest of these are kept).
 
 Example for flat client notes:
 
@@ -171,5 +174,5 @@ Tell them:
 ## Changing Projium's code
 
 - No npm dependencies: Node built-ins (`node:http`, `node:sqlite`, `node:test`) plus one vendored file, `lib/vendor/js-yaml.mjs` (js-yaml 4.1.1, MIT, kept for its YAML 1.1 timestamps), which checks every frontmatter write. Plain JS UI in `public/`.
-- `server.mjs`: HTTP server and background jobs. `lib/`: card parsing and writing (`card.mjs`, `store.mjs`), config (`config.mjs`), repo and audit checks (`repo.mjs`), site checks (`health.mjs`, `prod.mjs`, `net.mjs`), Launch Watch (`watch.mjs`, alert text in `public/watch-text.js`), time split (`timesplit.mjs`), digest (`digest.mjs`), doctor, init and start/stop (`doctor.mjs`, `init.mjs`, `control.mjs`), MCP server (`mcp.mjs`, a client of the HTTP API). `scripts/`: command entry points. `test/`: `node:test` suites.
+- `server.mjs`: HTTP server and background jobs. `lib/`: card parsing and writing (`card.mjs`, `store.mjs`, new cards from `docs/card-template.md` in `template.mjs`), config (`config.mjs`), the Settings page backend (`settings.mjs`), repo and audit checks (`repo.mjs`), site checks (`health.mjs`, `prod.mjs`, `net.mjs`), Launch Watch (`watch.mjs`, alert text in `public/watch-text.js`), time split (`timesplit.mjs`), digest (`digest.mjs`), doctor, init and start/stop (`doctor.mjs`, `init.mjs`, `control.mjs`), the setup wizard and the `projium` command (`setup.mjs`, `cli.mjs`, entry `bin/projium.mjs`), MCP server (`mcp.mjs`, a client of the HTTP API). `scripts/`: command entry points. `test/`: `node:test` suites.
 - `npm test` must pass. No comments in code. Keep every guarantee in the README's "Privacy and safety" section.

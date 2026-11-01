@@ -2,6 +2,14 @@
 
 Versions follow [semantic versioning](https://semver.org); each one is a git tag (`v0.4.0`). After pulling a new version, restart the server (`npm run --silent stop`, then `npm run --silent start:bg`, or log in again with autostart).
 
+## 0.9.0 (2026-11-01)
+
+- **Setup in 5 minutes:** `npx github:egorb2302/Projium` (or `npm run setup` in a clone) asks where the project notes are, offering the folders of your Obsidian vaults that hold notes with a status, and where you clone repos; reads the notes and proposes the mapping (layout, the status field, your status words as stages, the to-do heading, whether to check `site` URLs); writes the config, starts the dashboard in the background and opens it. Through npx the config and data live in `~/.projium`. The `projium` command also has `start`, `stop`, `restart` and `doctor`; `--notes`, `--repos`, `--port` and `--yes` set it up without questions.
+- **Settings page** (key `4`): folders, time zone, digest time, language and channel (Telegram bot token and chat id, kept only in `.env.local`, or a command), port, and Launch Watch targets (add, edit, remove). A save is validated as a whole config, written atomically, keeps the previous file as `.bak-<time>` and refuses to write over a file changed meanwhile; the page then says to restart and how. API: `GET`/`POST /api/settings`.
+- **New project** on the list: creates a card from `docs/card-template.md` in the owner's layout, field keys, stage words, filter and section headings, and opens it. It never writes over an existing note. **From repos** in the same panel lists git repos in `reposDir` that no card points at and creates a card for each one ticked. API: `POST /api/projects`, `GET /api/repos`, `POST /api/repos/cards`.
+- The config folder's own `.env.local` is read too, so a config outside the Projium folder can keep its Telegram token next to it.
+- `init --force` and the Settings page keep the 10 newest timestamped config backups and delete older ones; other backup files are never touched.
+
 ## 0.8.0 (2026-11-01)
 
 - **Launch Watch** ([docs/watch.md](docs/watch.md)): a `watch` block in the config lists what is live, checked every 5 minutes whatever the stage of the project (a `done` project that is still live stays watched):
