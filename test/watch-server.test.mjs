@@ -148,6 +148,17 @@ test('the config reads the watch block, reports its unknown keys, and the doctor
   assert.match(hints, /watch targets name project\(s\) with no card: nowhere/)
   assert.match(d.problems.join('\n'), /unknown keys are ignored: watch\.targets\[1\]\.minSol/)
 
+  assert.doesNotMatch(hints, /local or private address/)
+
+  put(file, JSON.stringify({ projectsDir: 'projects', reposDir: 'repos', watch: { targets: [
+    { name: 'keeper', kind: 'heartbeat', url: 'http://127.0.0.1:8080/health', max: { stuckOps: 0 } },
+    { name: 'dev', kind: 'site', url: 'http://app.localhost:5173' },
+    { name: 'lan', kind: 'site', url: 'http://[::1]:3000' },
+    { name: 'pub', kind: 'site', url: 'https://8.8.8.8' },
+  ] } }))
+  const local = await diagnose(dir, { file, probe: async () => ({ running: false }) })
+  assert.match(local.hints.join('\n'), /watch target\(s\) "keeper", "dev", "lan" point at a local or private address, which watch checks refuse \(EPRIVATE\)/)
+
   put(file, JSON.stringify({ projectsDir: 'projects', watch: { targets: [{ name: 'x', kind: 'balance', address: TREASURY }] } }))
   assert.throws(() => loadConfig(dir, file), /watch target "x": min must be/)
 })
