@@ -9,6 +9,9 @@ const plural = (n, one, few, many) => {
 
 const en = {
   locale: 'en-GB',
+  themeGroup: 'Theme',
+  themeDark: 'Dark theme',
+  themeLight: 'Light theme',
   navProjects: 'Projects',
   navTime: 'Time',
   stage: { development: 'development', review: 'review', fixes: 'fixes', done: 'done' },
@@ -313,6 +316,9 @@ const en = {
 
 const ru = {
   locale: 'ru-RU',
+  themeGroup: 'Тема',
+  themeDark: 'Тёмная тема',
+  themeLight: 'Светлая тема',
   navProjects: 'Проекты',
   navTime: 'Время',
   stage: { development: 'разработка', review: 'ревью', fixes: 'правки', done: 'готов' },

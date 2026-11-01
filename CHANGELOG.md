@@ -2,6 +2,12 @@
 
 Versions follow [semantic versioning](https://semver.org); each one is a git tag (`v0.4.0`). After pulling a new version, restart the server (`npm run --silent stop`, then `npm run --silent start:bg`, or log in again with autostart).
 
+## 0.11.0 (2026-11-01)
+
+- **Light theme:** a moon and sun switch next to RU and EN in the header. The choice is kept in the browser (`projium-theme`); dark stays the default. The light theme uses the paper, ink and amber of the Projium site.
+- A new logo: a P drawn as a constellation, one star of it amber. It replaces the old mark in the header, the favicon, the loading screen, the Windows shortcut icon (`assets/tracker.ico`) and client status pages.
+- Client status pages follow the viewer's system theme: light on a light system, dark otherwise.
+
 ## 0.10.0 (2026-11-01)
 
 - **Client status pages** ([docs/share.md](docs/share.md)): a read-only page per project for a client or manager with the stage, progress (the readiness file, or the checked `## Updates` items), the updates with their checkmarks, uptime with a bar per day and the project's Launch Watch sites and heartbeats, and incidents of the last 90 days. Stage, progress, updates, uptime and incidents are on by default; status words, the next step and open tasks only when ticked. Paths, repo names, priorities, wallet balances and alert details never appear.

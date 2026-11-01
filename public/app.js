@@ -1193,6 +1193,18 @@ const chrome = page => {
     a.firstChild.textContent = `${t(NAV[a.dataset.nav] ?? 'navProjects')} `
   }
   for (const b of document.querySelectorAll('[data-lang]')) b.setAttribute('aria-pressed', String(b.dataset.lang === getLang()))
+  themeChrome()
+}
+
+const theme = () => (document.documentElement.dataset.theme === 'light' ? 'light' : 'dark')
+const themeChrome = () => {
+  document.querySelector('.theme')?.setAttribute('aria-label', t('themeGroup'))
+  for (const b of document.querySelectorAll('[data-theme-set]')) {
+    const label = t(b.dataset.themeSet === 'light' ? 'themeLight' : 'themeDark')
+    b.setAttribute('aria-label', label)
+    b.title = label
+    b.setAttribute('aria-pressed', String(b.dataset.themeSet === theme()))
+  }
 }
 
 const route = async () => {
@@ -1277,6 +1289,13 @@ for (const b of document.querySelectorAll('[data-lang]'))
     if (b.dataset.lang === getLang()) return
     setLang(b.dataset.lang)
     route()
+  })
+
+for (const b of document.querySelectorAll('[data-theme-set]'))
+  b.addEventListener('click', () => {
+    document.documentElement.dataset.theme = b.dataset.themeSet
+    setPref('projium-theme', b.dataset.themeSet)
+    themeChrome()
   })
 
 window.addEventListener('hashchange', () => {
