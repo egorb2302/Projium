@@ -25,8 +25,9 @@ A card entry:
 | `fields` | `status`, `stage`, `next_step`, `site`, `accepted_by`, `handed_over_at`, `accepted_at`, `spec_at`, `design_pick_at`, `first_push_at`, `mainnet_at` when present. Other frontmatter keys are never returned. |
 | `fieldKeys` | Fields mapped to the owner's own frontmatter keys (`cards.fields`), like `{ "stage": "status" }`, whether or not this note has the key yet. Writes go to those keys; writing a field the note does not have adds the owner's key. |
 | `locked` | Field names the dashboard will not write (not a plain one-line value in the card). |
-| `tasks` | `{ id, done, text, due, p }`; `readonly: true` for tasks without a `^t-` id. |
-| `updates`, `timeline` | Lines of `## Updates` and rows of the `## Timeline` table. |
+| `tasks` | `{ id, at, done, text, due, p }`. `at` is the task's position among the checkbox lines of the section; `id` is its trailing block id (`^t-a1b2` gives `t-a1b2`), or `""` when the line has none. |
+| `updates` | Lines of `## Updates`: `{ text, item, done, id }`, plus `at` (position among the `- ` items) on items. `done` is `true` for an item written as `- [x] `. |
+| `timeline` | Rows of the `## Timeline` table. |
 | `repoInfo` | `repo` (folder name), `readiness` (`proven`, `total`, `audit`, `commit`), `freshness` (`state`: `current`, `changed-after`, `no-audit-commit`, `audit-commit-unknown`, `git-unavailable`, `no-repo`, plus commit counts), `updates` (release plan and update branches). |
 | `health` | `last` check `{ ts, code, ms, error }`, `uptime24` (percent), `checks24`. |
 | `prodUpdates` | `{ entries, checkedAt, configError }`. Each entry: `n` (update number, `null` for a site flag outside the release plan), `flags` (`{ name, prod }`), `branch` (`{ name, sha, inMain }` or `null`), `state` (`on`, `off`, `partly`, `merged`, `branch`, `unknown`). |
@@ -58,7 +59,7 @@ Send `fileId` with every write, tasks too. With `cards.layout "flat"` it is requ
 { "op": "add", "task": { "text": "Write the client readme", "due": "2026-11-05", "p": "p2" }, "fileId": "from the card" }
 ```
 
-`due` and `p` (`p1`, `p2`, `p3`) are optional. The text must be one line without `^` or ` · `. A `## Tasks` section is created when missing.
+`due` and `p` (`p1`, `p2`, `p3`) are optional. The text must be one line, and without a due date or priority it must not end like ` · due YYYY-MM-DD` or ` · p1` (it would read back as one). A `## Tasks` section is created when missing.
 
 **Toggle or edit a task:**
 
@@ -67,7 +68,15 @@ Send `fileId` with every write, tasks too. With `cards.layout "flat"` it is requ
 { "op": "edit", "id": "t-a1b2", "expected": { "...": "as read" }, "task": { "text": "New text", "due": "", "p": "p2" }, "fileId": "from the card" }
 ```
 
-`expected` is the task exactly as you read it; a mismatch returns `409`.
+A task without an id is addressed by its position: send `"at": 3` instead of `id`. A toggle flips only its checkbox; an edit rewrites the line in the Projium format and gives it an id. `expected` is the task exactly as you read it; a mismatch returns `409`.
+
+**Mark an update done:** `POST /api/projects/<name>/update`
+
+```json
+{ "at": 0, "done": true, "expected": { "text": "u1 referral links", "done": false }, "fileId": "from the card" }
+```
+
+The item at that position becomes `- [x] ` (or `- [ ] ` with `"done": false`); the rest of the line stays. A mismatch with `expected` returns `409`.
 
 **Recheck now:** `POST /api/projects/<name>/refresh` with `{}` re-reads git, the live site and transcripts for that card.
 

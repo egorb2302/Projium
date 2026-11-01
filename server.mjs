@@ -335,6 +335,7 @@ export const createApp = ({
         if (body.instance !== undefined && body.instance !== instanceId(projectsRoot)) return send(res, 421, { error: 'this Projium serves another projects folder; nothing was written' })
         if (parts[3] === 'field') return send(res, 200, await view(store.saveField(parts[2], body.key, body.value, body.expected, body.fileId), true))
         if (parts[3] === 'task') return send(res, 200, await view(store.saveTask(parts[2], body, body.fileId), true))
+        if (parts[3] === 'update') return send(res, 200, await view(store.saveUpdate(parts[2], body, body.fileId), true))
         if (parts[3] === 'refresh') {
           const card = store.load(parts[2])
           await repoInfo(card, true)

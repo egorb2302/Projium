@@ -2,6 +2,13 @@
 
 Versions follow [semantic versioning](https://semver.org); each one is a git tag (`v0.4.0`). After pulling a new version, restart the server (`npm run --silent stop`, then `npm run --silent start:bg`, or log in again with autostart).
 
+## 0.7.0 (2026-11-01)
+
+- Tasks without a Projium id (lines written by hand or by an agent, or with a non-standard block id like `^t-1uz`) can be checked off and edited from the dashboard. A check flips only the box; an edit rewrites the line as `- [ ] text · due · p ^t-xxxx` with a new id. The API and the MCP `toggle_task` and `edit_task` take the task's position `at` for such tasks. Task text may now contain ` · ` and `^`; it only must not end like a due date or priority it does not have.
+- Items of `## Updates` get a checkbox on the project page: checking one writes it as `- [x] ` in the note. New `POST /api/projects/<name>/update` and MCP tool `mark_update`.
+- Time page: spec to mainnet is a chart by start date (log scale, median line, hover for details, click a dot to open the project), and a per-project breakdown by phase replaces the old bars.
+- Doctor no longer warns about tasks without an id, and does not count update checkboxes as stray tasks.
+
 ## 0.6.1 (2026-11-01)
 
 - The project list opens on All when no project is in progress, instead of an empty In progress list. Until you pick a filter, it is chosen again each time the list opens, so it follows stage changes made on a project page.

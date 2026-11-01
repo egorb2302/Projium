@@ -47,4 +47,4 @@ Task lines go under `## Tasks`:
 - [ ] Checkout page · due 2026-11-08 · p1 ^t-a1b2
 ```
 
-The separator is ` · ` (U+00B7 with a space on each side). Task ids are `^t-` plus four lowercase letters or digits, unique within the card; tasks added from the dashboard or the API get one automatically. Timeline rows record where each time came from: `| Spec received | 2026-11-01 10:00 | source note | exact |`.
+The separator is ` · ` (U+00B7 with a space on each side). Task ids are `^t-` plus four lowercase letters or digits, unique within the card; tasks added from the dashboard or the API get one automatically, and a task without one gets one the first time it is edited there. Timeline rows record where each time came from: `| Spec received | 2026-11-01 10:00 | source note | exact |`.

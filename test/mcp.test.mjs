@@ -63,7 +63,9 @@ test('tool arguments are checked before any call, and a conflict comes back as a
   const call = async (name, args) => (await mcp(rpc(1, 'tools/call', { name, arguments: args }))).result
   assert.match((await call('set_field', { name: 'x', key: 'next_step', value: 'v', expected: '' })).content[0].text, /fileId is required/)
   assert.match((await call('set_field', { name: 'x', key: 'secret', value: 'v', expected: '', fileId: 'f' })).content[0].text, /key must be one of/)
-  assert.match((await call('toggle_task', { name: 'x', id: 't-12', expected: { done: false, text: 'a', due: '', p: '' }, fileId: 'f' })).content[0].text, /wrong format/)
+  assert.match((await call('toggle_task', { name: 'x', id: 't 12', expected: { done: false, text: 'a', due: '', p: '' }, fileId: 'f' })).content[0].text, /wrong format/)
+  assert.match((await call('toggle_task', { name: 'x', id: '', expected: { done: false, text: 'a', due: '', p: '' }, fileId: 'f' })).content[0].text, /task id, or at/)
+  assert.match((await call('mark_update', { name: 'x', at: 1.5, done: true, expected: { text: 'a', done: false }, fileId: 'f' })).content[0].text, /whole number/)
   assert.match((await call('add_task', { name: 'x', text: 'a', fileId: 'f', extra: 1 })).content[0].text, /not a known argument/)
   assert.match((await call('edit_task', { name: 'x', id: 't-1234', expected: { done: false, text: 'a', due: '', p: '' }, fileId: 'f' })).content[0].text, /at least one of text, due or p/)
   assert.match((await call('get_project', { name: '' })).content[0].text, /must not be empty/)
@@ -140,6 +142,10 @@ test('an agent reads and writes a project through the MCP server over stdio', { 
   assert.equal(toggled.tasks.find(x => x.id === 't-aaaa').done, true)
   await call('edit_task', { name: 'alpha', id: task.id, expected: { done: false, text: 'Book the call', due: '', p: 'p2' }, due: '2026-11-05', fileId: got.fileId })
   assert.match(fs.readFileSync(card, 'utf8'), new RegExp(`^- \\[ \\] Book the call · due 2026-11-05 · p2 \\^${task.id}$`, 'm'))
+  fs.writeFileSync(card, `${fs.readFileSync(card, 'utf8')}\n## Updates\n\n- u1 launch\n`)
+  const marked = (await call('mark_update', { name: 'alpha', at: 0, done: true, expected: { text: 'u1 launch', done: false }, fileId: got.fileId })).structuredContent
+  assert.equal(marked.updates[0].done, true)
+  assert.match(fs.readFileSync(card, 'utf8'), /^- \[x\] u1 launch$/m)
   assert.match((await call('digest_preview', {})).structuredContent.text, /alpha/)
 
   const check = file =>

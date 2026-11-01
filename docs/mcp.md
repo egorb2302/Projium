@@ -56,8 +56,9 @@ A non-default config file goes into the server's environment as `TRACKER_CONFIG`
 | `get_project` | One project in full, as `GET /api/projects/<name>` returns it (without the uptime history), including `fileId`, `locked` fields and task ids. | no |
 | `set_field` | One field (`stage`, `next_step`, `site`, `accepted_by`, dates and milestone times), with `expected` and `fileId`. | the note |
 | `add_task` | An open task with optional `due` and `p`; the id is created. | the note |
-| `toggle_task` | Checks or unchecks a task, with `expected` (the task as read). | the note |
-| `edit_task` | Text, due date or priority of a task; left-out fields stay. | the note |
+| `toggle_task` | Checks or unchecks a task, with `expected` (the task as read). A task without an id is given by `at`. | the note |
+| `edit_task` | Text, due date or priority of a task; left-out fields stay. A task without an id is given by `at` and gets an id. | the note |
+| `mark_update` | Checks or unchecks an item of `## Updates` by its `at`, with `expected` (`text`, `done` as read). | the note |
 | `refresh_project` | Re-reads git, the audit, the live site config and the build time for one project. | no (makes the site check's network calls) |
 | `digest_preview` | The digest text as it would be sent now. Sends nothing. | no |
 | `doctor` | The doctor report, with local paths like `npm run --silent doctor`. | no |

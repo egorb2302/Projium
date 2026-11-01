@@ -25,7 +25,7 @@ A pixel-art NFT mint with an allowlist phase. Demo card: every name and number h
 
 ## Updates
 
-- u1 second collection page · built 2026-10-13 · in main 2026-10-13 · released 2026-10-14 ^u-1
+- [x] u1 second collection page · built 2026-10-13 · in main 2026-10-13 · released 2026-10-14 ^u-1
 
 ## Timeline
 

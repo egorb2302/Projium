@@ -26,8 +26,8 @@ A token swap page with a points leaderboard. Demo card: every name and number he
 
 ## Updates
 
-- u1 referral links · built 2026-10-08 · in main 2026-10-08 · released 2026-10-09 ^u-1
-- u2 points multiplier · built 2026-10-14 · in main 2026-10-15 · released 2026-10-15 ^u-2
+- [x] u1 referral links · built 2026-10-08 · in main 2026-10-08 · released 2026-10-09 ^u-1
+- [x] u2 points multiplier · built 2026-10-14 · in main 2026-10-15 · released 2026-10-15 ^u-2
 - u3 season switch · built 2026-10-28 · in review ^u-3
 
 ## Timeline

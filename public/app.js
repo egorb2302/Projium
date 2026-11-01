@@ -348,16 +348,28 @@ const fieldRow = (p, [key, kind], rerender) => {
   return row
 }
 
-const taskList = (p, rerender) => {
-  const url = `/api/projects/${encodeURIComponent(p.name)}/task`
-  const send = async body => {
-    try {
-      rerender(await api(url, { ...body, fileId: p.fileId }))
-    } catch (e) {
-      toast(e.status === 409 ? t('reloaded', e.message) : e.message, true)
-      if (e.status === 409) route()
-    }
+const writer = (p, what, rerender) => async body => {
+  try {
+    rerender(await api(`/api/projects/${encodeURIComponent(p.name)}/${what}`, { ...body, fileId: p.fileId }))
+  } catch (e) {
+    toast(e.status === 409 ? t('reloaded', e.message) : e.message, true)
+    if (e.status === 409) route()
   }
+}
+
+const updateList = (p, rerender) => {
+  if (!p.updates.length) return h('p', { class: 'muted small' }, t('noUpdates'))
+  const send = writer(p, 'update', rerender)
+  return h('ul', { class: 'lines upd' }, p.updates.map(u => (u.item
+    ? h('li', { class: `upd-item${u.done ? ' done' : ''}` },
+      h('input', { type: 'checkbox', checked: u.done, 'aria-label': t('doneLabel', u.text), onchange: () => send({ at: u.at, done: !u.done, expected: { text: u.text, done: u.done } }) }),
+      h('span', {}, rich(u.text)))
+    : h('li', { class: 'upd-note muted small' }, rich(u.text)))))
+}
+
+const taskList = (p, rerender) => {
+  const send = writer(p, 'task', rerender)
+  const ref = x => (x.id ? { id: x.id } : { at: x.at })
   const expected = x => ({ done: x.done, text: x.text, due: x.due, p: x.p })
   const today = todayIn(p.zone)
   const meta = task => [
@@ -366,12 +378,8 @@ const taskList = (p, rerender) => {
   ]
   const item = task => {
     const li = h('li', { class: `task${task.done ? ' done' : ''}` })
-    if (task.readonly) {
-      li.append(h('input', { type: 'checkbox', checked: task.done, disabled: true, 'aria-label': task.text }), h('div', {}, h('div', { class: 't-body' }, h('span', { class: 't-text' }, rich(task.text)), meta(task)), h('div', { class: 'muted small' }, t('noTaskId'))), h('span'))
-      return li
-    }
     const view = () => li.replaceChildren(
-      h('input', { type: 'checkbox', checked: task.done, 'aria-label': t('doneLabel', task.text), onchange: () => send({ op: 'toggle', id: task.id, expected: expected(task) }) }),
+      h('input', { type: 'checkbox', checked: task.done, 'aria-label': t('doneLabel', task.text), onchange: () => send({ op: 'toggle', ...ref(task), expected: expected(task) }) }),
       h('div', { class: 't-body' }, h('span', { class: 't-text' }, rich(task.text)), meta(task)),
       h('button', { onclick: edit }, t('edit')))
     const edit = () => {
@@ -379,7 +387,7 @@ const taskList = (p, rerender) => {
       const due = h('input', { type: 'date', value: task.due, 'aria-label': t('dueDate'), lang: t('locale') })
       const pr = h('select', { 'aria-label': t('priority') }, ['', 'p1', 'p2', 'p3'].map(x => h('option', { value: x, selected: x === task.p }, x || t('none'))))
       li.replaceChildren(h('span'), h('div', { class: 'edit' }, text, due, pr,
-        h('button', { class: 'primary', onclick: () => send({ op: 'edit', id: task.id, expected: expected(task), task: { text: text.value, due: due.value, p: pr.value } }) }, t('save')),
+        h('button', { class: 'primary', onclick: () => send({ op: 'edit', ...ref(task), expected: expected(task), task: { text: text.value, due: due.value, p: pr.value } }) }, t('save')),
         h('button', { onclick: view }, t('cancel'))), h('span'))
     }
     view()
@@ -494,7 +502,7 @@ const renderProject = async (name, n) => {
               },
             }, t('recheck'))),
           h('section', { class: 'panel' }, h('h2', {}, t('updates')),
-            p.updates.length ? h('ul', { class: 'lines' }, p.updates.map(u => (u.item ? h('li', {}, rich(u.text)) : h('p', { class: 'muted small' }, rich(u.text))))) : h('p', { class: 'muted small' }, t('noUpdates')),
+            updateList(p, draw),
             prodPanel(p)),
           h('section', { class: 'panel' }, h('h2', {}, t('timeline')),
             p.timeline.length ? h('div', { class: 'table-wrap' }, h('table', {},
@@ -543,12 +551,135 @@ const splitPanel = projects => {
     h('p', { class: 'muted small' }, t('splitNote')))
 }
 
+const NS = 'http://www.w3.org/2000/svg'
+const sv = (tag, attrs = {}, ...kids) => {
+  const el = document.createElementNS(NS, tag)
+  for (const [k, v] of Object.entries(attrs)) if (v != null) el.setAttribute(k, v)
+  el.append(...kids.flat(Infinity).filter(x => x != null))
+  return el
+}
+
+const chartBox = (cls, draw) => {
+  const box = h('div', { class: `chart ${cls}` })
+  const tip = h('div', { class: 'tip', role: 'tooltip' })
+  let width = 0
+  const show = (target, ...kids) => {
+    tip.replaceChildren(...kids)
+    const b = box.getBoundingClientRect()
+    const r = target.getBoundingClientRect()
+    tip.classList.add('on')
+    const x = Math.min(Math.max(r.left + r.width / 2 - b.left - tip.offsetWidth / 2, 0), b.width - tip.offsetWidth)
+    tip.style.transform = `translate(${x}px, ${r.top - b.top - tip.offsetHeight - 8}px)`
+  }
+  const hide = () => tip.classList.remove('on')
+  new ResizeObserver(() => {
+    if (!box.clientWidth || box.clientWidth === width) return
+    width = box.clientWidth
+    box.replaceChildren(draw(width, { show, hide }), tip)
+  }).observe(box)
+  return box
+}
+
+const hoverable = (el, tips, content) => {
+  const on = () => (el.classList.add('hot'), tips.show(el, ...content()))
+  const off = () => (el.classList.remove('hot'), tips.hide())
+  el.addEventListener('pointerenter', on)
+  el.addEventListener('pointerleave', off)
+  el.addEventListener('focus', on)
+  el.addEventListener('blur', off)
+  return el
+}
+
+const TICKS_H = [0.5, 1, 3, 12, 24, 72, 168, 720, 2160]
+const tickH = v => (v < 24 ? `${v} ${t('h')}` : `${v / 24} ${t('d')}`)
+const DAY = 864e5
+const dayText = ms => new Date(ms).toLocaleDateString(t('locale'), { day: 'numeric', month: 'short' })
+
+const trendChart = rows => (width, tips) => {
+  const H = width < 560 ? 230 : 280
+  const m = { l: 52, r: 18, t: 22, b: 30 }
+  const iw = width - m.l - m.r
+  const ih = H - m.t - m.b
+  const vals = rows.map(r => r.total)
+  const lo = TICKS_H.filter(x => x <= Math.min(...vals) / 1.2).at(-1) ?? 0.25
+  const hi = TICKS_H.find(x => x >= Math.max(...vals)) ?? Math.max(...vals)
+  const y = v => m.t + ih - ((Math.log(v) - Math.log(lo)) / (Math.log(hi) - Math.log(lo))) * ih
+  const xs = rows.map(r => r.at)
+  const pad = Math.max((Math.max(...xs) - Math.min(...xs)) * 0.04, DAY)
+  const x0 = Math.min(...xs) - pad
+  const x1 = Math.max(...xs) + pad
+  const x = v => m.l + ((v - x0) / (x1 - x0)) * iw
+  const step = [1, 2, 3, 7, 14, 30, 60].map(d => d * DAY).find(s => (x1 - x0) / s <= iw / 84) ?? 90 * DAY
+  const first = new Date(x0)
+  first.setHours(0, 0, 0, 0)
+  const dayTicks = []
+  for (let d = first.getTime() + DAY; d < x1; d += step) dayTicks.push(d)
+  const med = median(vals)
+  const pts = rows.map(r => ({ ...r, cx: x(r.at), cy: y(r.total) }))
+  const ends = width < 560 ? [] : [pts[0], pts.at(-1)].filter((p, i, a) => a.indexOf(p) === i)
+  const label = p => {
+    const right = p.cx < width / 2
+    return sv('text', { x: p.cx + (right ? 12 : -12), y: p.cy - 10, 'text-anchor': right ? 'start' : 'end', class: 'lbl halo' },
+      sv('tspan', { class: 'lbl-v' }, fmtH(p.total)), ` ${p.p.name}`)
+  }
+  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${p.cx.toFixed(1)},${p.cy.toFixed(1)}`).join('')
+  return sv('svg', { width, height: H, viewBox: `0 0 ${width} ${H}`, role: 'img', 'aria-label': t('trendAria', rows.length, fmtH(med)) },
+    sv('defs', {}, sv('linearGradient', { id: 'trend-wash', x1: 0, y1: 0, x2: 0, y2: 1 }, sv('stop', { offset: 0, class: 'wash-top' }), sv('stop', { offset: 1, class: 'wash-end' }))),
+    TICKS_H.filter(v => v >= lo && v <= hi).map(v => [
+      sv('line', { x1: m.l, x2: width - m.r, y1: y(v), y2: y(v), class: 'grid' }),
+      sv('text', { x: m.l - 10, y: y(v) + 4, 'text-anchor': 'end', class: 'tick' }, tickH(v))]),
+    dayTicks.map(d => sv('text', { x: x(d), y: H - 8, 'text-anchor': 'middle', class: 'tick' }, dayText(d))),
+    med == null ? null : [
+      sv('line', { x1: m.l, x2: width - m.r, y1: y(med), y2: y(med), class: 'median' }),
+      sv('text', { x: width - m.r, y: y(med) - 6, 'text-anchor': 'end', class: 'tick halo' }, t('medianLine', fmtH(med)))],
+    pts.length > 1 ? sv('path', { d: `${line}L${pts.at(-1).cx.toFixed(1)},${m.t + ih}L${pts[0].cx.toFixed(1)},${m.t + ih}Z`, class: 'wash' }) : null,
+    sv('path', { d: line, class: 'trend' }),
+    pts.map(p => hoverable(
+      sv('a', { href: pageLink(p.p), class: 'pt', 'aria-label': `${p.p.name}: ${fmtH(p.total)}, ${dayText(p.at)}` },
+        sv('circle', { cx: p.cx, cy: p.cy, r: 14, class: 'hit' }),
+        sv('circle', { cx: p.cx, cy: p.cy, r: 5, class: 'dot' })),
+      tips,
+      () => [h('b', {}, fmtH(p.total)), h('span', {}, p.p.name), h('span', { class: 'muted' }, dayText(p.at))])),
+    ends.map(label))
+}
+
+const PHASE_KEYS = ['a', 'b', 'c']
+const phaseParts = d => {
+  const a = d.design ?? 0
+  const b = Math.max(0, (d.push ?? 0) - a)
+  const c = Math.max(0, d.mainnet ?? 0)
+  const parts = [['a', a], ['b', b], ['c', c]].filter(([, v]) => v > 0)
+  return parts.length ? parts : [['x', d.total]]
+}
+
+const phaseChart = rows => (width, tips) => {
+  const narrow = width < 560
+  const track = width - (narrow ? 100 : 160) - (narrow ? 56 : 72) - 28
+  return h('div', { class: `ph-rows${narrow ? ' narrow' : ''}` }, rows.map(({ p, d }) => {
+    const parts = phaseParts(d)
+    const sum = parts.reduce((s, [, v]) => s + v, 0)
+    return h('div', { class: 'ph-row' },
+      projectLink(p),
+      h('div', { class: 'ph-track' }, parts.map(([k, v]) => {
+        const share = v / sum
+        const name = k === 'x' ? t('phases').total : k === 'b' && d.design == null ? t('legendB0') : t(`legend${k.toUpperCase()}`)
+        return hoverable(
+          h('span', { class: `ph ph-${k}`, style: `flex-grow:${share}`, tabindex: '0', 'aria-label': `${p.name}, ${name}: ${fmtH(v)}` },
+            share * track >= 44 ? `${Math.round(share * 100)}%` : null),
+          tips,
+          () => [h('b', {}, fmtH(v)), h('span', {}, name), h('span', { class: 'muted' }, `${Math.round(share * 100)}% · ${p.name}`)])
+      })),
+      h('span', { class: 'num' }, fmtH(d.total)))
+  }))
+}
+
 const renderTime = async n => {
   const all = await api('/api/projects')
   if (n !== seq) return
   const projects = all.filter(p => !p.error).map(p => ({ ...p, d: durations(p.fields) }))
-  const withTotal = projects.filter(p => p.d.total != null).sort((a, b) => a.d.total - b.d.total)
-  const max = Math.max(...withTotal.map(p => p.d.total), 1)
+  const timed = projects.filter(p => p.d.total != null && Number.isFinite(Date.parse(p.fields.spec_at)))
+  const untimed = projects.filter(p => !timed.includes(p))
+  const trend = timed.map(p => ({ p, at: Date.parse(p.fields.spec_at), total: Math.max(p.d.total, 0.05) })).sort((a, b) => a.at - b.at)
   const kpi = (v, l) => h('div', { class: 'kpi' }, h('div', { class: 'v' }, fmtH(v)), h('div', { class: 'l' }, l))
   render(
     h('div', { class: 'kpis' },
@@ -556,21 +687,17 @@ const renderTime = async n => {
       kpi(median(projects.map(p => p.d.push)), t('medianPush')),
       kpi(median(projects.map(p => p.d.mainnet)), t('medianMainnet')),
       kpi(median(projects.map(p => p.d.total)), t('medianTotal'))),
-    h('section', { class: 'panel' }, h('h2', {}, t('wallTitle')),
-      h('div', { class: 'legend' },
-        h('span', {}, h('i', { class: 'seg-a' }), t('legendA')),
-        h('span', {}, h('i', { class: 'seg-b' }), t('legendB')),
-        h('span', {}, h('i', { class: 'seg-c' }), t('legendC'))),
-      h('div', { class: 'bars' }, withTotal.map(p => {
-        const a = p.d.design ?? 0
-        const b = (p.d.push ?? 0) - a
-        const c = p.d.mainnet ?? 0
-        const w = x => `width:${Math.max(0, (x / max) * 100)}%`
-        return h('div', { class: 'bar-row' },
-          projectLink(p),
-          h('div', { class: 'bar-track', title: `${fmtH(a)} + ${fmtH(b)} + ${fmtH(c)}` }, h('span', { class: 'seg-a', style: w(a) }), h('span', { class: 'seg-b', style: w(b) }), h('span', { class: 'seg-c', style: w(c) })),
-          h('span', { class: 'num' }, fmtH(p.d.total)))
-      }))),
+    trend.length
+      ? h('section', { class: 'panel' }, h('h2', {}, t('trendTitle')),
+        chartBox('trend-chart', trendChart(trend)),
+        h('p', { class: 'muted small' }, t('trendNote')))
+      : null,
+    trend.length
+      ? h('section', { class: 'panel' }, h('h2', {}, t('phasesTitle')),
+        h('div', { class: 'legend' }, PHASE_KEYS.map(k => h('span', {}, h('i', { class: `ph-${k}` }), t(`legend${k.toUpperCase()}`)))),
+        chartBox('phase-chart', phaseChart([...trend].reverse().map(r => ({ p: r.p, d: r.p.d })))),
+        untimed.length ? h('p', { class: 'small nodata' }, t('noTotalList'), untimed.flatMap((p, i) => [i ? ', ' : '', projectLink(p)])) : null)
+      : null,
     splitPanel(projects),
     h('section', { class: 'panel' }, h('h2', {}, t('allProjectsTitle')),
       h('div', { class: 'table-wrap' }, h('table', {},

@@ -69,7 +69,7 @@ test('the doctor says why each folder is skipped, flags config typos and never p
   const by = Object.fromEntries(r.cards.map(c => [c.name, c]))
   assert.equal(by.alpha.status, 'ok')
   assert.equal(by.alpha.repo, path.join(repos, 'alpha'))
-  assert.match(by.alpha.warnings.join('\n'), /1 task\(s\) without a \^t-xxxx id/)
+  assert.doesNotMatch(by.alpha.warnings.join('\n'), /task/, 'a task without an id is editable, so it is no longer a warning')
   assert.equal(by.beta.status, 'skipped')
   assert.match(by.beta.reason, /no beta\/beta\.md \(the folder has 1 other \.md file/)
   assert.match(by.gamma.reason, /no YAML frontmatter/)

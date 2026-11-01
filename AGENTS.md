@@ -75,7 +75,7 @@ It prints every frontmatter key with how many notes use it, its value kinds (tex
 
 Keys with spaces cannot be mapped. Date and time formats are read as they are (`2026-10-20 09:30`, `2026-10-20T09:30`, with seconds, date-only); writes keep each field's format. Times are in the owner's UTC offset (step 4). Doctor's `cards[].fieldsFrom` shows which key each field was read from.
 
-**Tasks.** If the owner's to-dos are checkboxes under one `##` heading (`## Todo`, `## Next`), set `"sections": { "tasks": "Todo" }` (that is the heading; a `next:` frontmatter key is a different thing, `next_step`). Their own lines show as read-only tasks (no task id), and dates written inside their text (`(due Nov 8)`) are not read; that is expected, and the doctor's warning about it needs no fix. Do not edit the notes to clear warnings. Tasks added from the dashboard get the Projium format `- [ ] text · due YYYY-MM-DD · p1 ^t-xxxx` in that section.
+**Tasks.** If the owner's to-dos are checkboxes under one `##` heading (`## Todo`, `## Next`), set `"sections": { "tasks": "Todo" }` (that is the heading; a `next:` frontmatter key is a different thing, `next_step`). Their own lines show as tasks the owner can check off and edit from the dashboard (a check flips only the box; an edit rewrites the line in the Projium format with an id), and dates written inside their text (`(due Nov 8)`) are not read; that is expected. Do not edit the notes to clear warnings. Tasks added from the dashboard get the Projium format `- [ ] text · due YYYY-MM-DD · p1 ^t-xxxx` in that section.
 
 **Repos.** A project is matched to a folder in `reposDir` with its name, ignoring case, spaces and punctuation (`Acme Shop` finds `acme-shop`). For other names, add them to the config, no note edits needed: `"repos": { "Nebula Wallet": "nebula", "Old Blog": "none" }` (`none` for projects without code). A `repo:` key in the note wins over that; a backticked path after `Repo` in the note body also works. Notes often name the repo in prose (`Code: ~/src/lumen-site`, a GitHub URL): read it, find the local clone, confirm a URL with `git -C <clone> remote get-url origin` when the clone has a remote, and put it into `cards.repos`. `~` means the home folder of the user who runs Projium.
 
@@ -123,7 +123,7 @@ It exits 0 with `ok: true` when `problems` is empty and at least one card is sho
 | `filteredOut` | Notes that do not match `cards.filter` | Check the number makes sense. |
 | `cards[].status: "skipped"` + `reason` | A folder or note in `projectsDir` that is not shown | Fine if it is not a project. |
 | `cards[].status: "error"` | A card that could not be read | Read `reason`. |
-| `cards[].warnings[]` | Shown, but something is off | An owner stage word missing from `cards.stages` (the warning says which), invalid values, read-only fields or tasks, checkboxes outside the tasks heading, no repo (`repo: none` if there is none), mixed line endings. |
+| `cards[].warnings[]` | Shown, but something is off | An owner stage word missing from `cards.stages` (the warning says which), invalid values, read-only fields, checkboxes outside the tasks and updates headings, no repo (`repo: none` if there is none), mixed line endings. |
 | `config.unknownKeys` | Typos in the config | Fix the key names. |
 | `server.running` | A Projium with this `projectsDir` answers on the port | Start it (step 6). |
 | `server.portBusy` | Something else answers on the port | Change `port`. |

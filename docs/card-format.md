@@ -63,9 +63,9 @@ All optional.
 - [ ] Fix slippage rounding · due 2026-11-02 · p1 ^t-a1b2
 ```
 
-`due` and the priority (`p1`, `p2`, `p3`) are optional. The block id `^t-xxxx` (four lowercase letters or digits) is how the dashboard finds the task again. Tasks without an id are shown read-only; tasks added from the dashboard get one.
+`due` and the priority (`p1`, `p2`, `p3`) are optional. The trailing block id (`^t-a1b2`; letters, digits and dashes) is how the dashboard finds the task again. A checkbox line without one can still be checked off and edited from the dashboard: a check flips only its box, and an edit rewrites the line in this format with a new id. Tasks added from the dashboard get an id too.
 
-`## Updates`: free lines, shown as written. A trailing `^u-N` block id is hidden.
+`## Updates`: free lines, shown as written. Items (`- ` lines) get a checkbox in the dashboard: checking one writes it as `- [x] `, unchecking as `- [ ] `. A trailing `^u-N` block id is hidden.
 
 `## Timeline`: a Markdown table, shown as written.
 

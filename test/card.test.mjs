@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { readFields, setField, readTasks, addTask, replaceTask, formatTask, validate, timelineRows, updateLines, lockedFields, toggleLine, writeKeepsYaml } from '../lib/card.mjs'
+import { readFields, setField, readTasks, addTask, replaceTask, formatTask, validate, timelineRows, updateLines, markUpdate, lockedFields, toggleLine, writeKeepsYaml } from '../lib/card.mjs'
 import { execFileSync } from 'node:child_process'
 import { auditedCommit, repoOf, ogImage, freshness } from '../lib/repo.mjs'
 import { createStore } from '../lib/store.mjs'
@@ -96,7 +96,11 @@ test('tasks parse, edit and add without touching other lines', () => {
   const added = addTask(CARD, { id: 't-zzzz', text: 'New one', due: '', p: 'p3' })
   const lines = added.split('\n')
   assert.equal(lines[lines.indexOf('- [x] Tests · due 2026-10-30 · p2 ^t-k2x9') + 1], '- [ ] New one · p3 ^t-zzzz')
-  assert.throws(() => formatTask({ id: 't-aaaa', text: 'bad ^ caret' }), /one line/)
+  assert.equal(formatTask({ id: 't-aaaa', text: 'a ^ caret · and a dot' }), '- [ ] a ^ caret · and a dot ^t-aaaa')
+  assert.throws(() => formatTask({ id: 't-aaaa', text: 'two\nlines' }), /one non-empty line/)
+  for (const text of ['ends like · p1', 'ends like · due 2026-11-01']) assert.throws(() => formatTask({ id: 't-aaaa', text }), /must not end/, text)
+  assert.equal(formatTask({ id: 't-aaaa', text: 'ends like · p1', p: 'p2' }), '- [ ] ends like · p1 · p2 ^t-aaaa', 'a priority after it keeps it unambiguous')
+  assert.throws(() => formatTask({ id: 'bad id', text: 'x' }), /bad task id/)
 })
 
 test('addTask into a section that only has a note', () => {
@@ -108,7 +112,13 @@ test('addTask into a section that only has a note', () => {
 
 test('timeline rows and update lines', () => {
   assert.deepEqual(timelineRows(CARD), [['Spec received', '2026-10-20 17:29', 'transcript', 'exact']])
-  assert.deepEqual(updateLines(CARD), [{ text: 'All flags off.', item: false, id: '' }, { text: 'u1 agent · released 02:22', item: true, id: 'u-1' }])
+  assert.deepEqual(updateLines(CARD), [{ text: 'All flags off.', item: false, done: false, id: '' }, { text: 'u1 agent · released 02:22', item: true, done: false, id: 'u-1', at: 0 }])
+  const marked = markUpdate(CARD, 0, () => true)
+  assert.ok(marked.text.includes('- [x] u1 agent · released 02:22 ^u-1'))
+  assert.equal(marked.text.split('\n').length, CARD.split('\n').length)
+  assert.deepEqual(updateLines(marked.text).map(u => u.done), [false, true])
+  assert.ok(markUpdate(marked.text, 0, () => false).text.includes('- [ ] u1 agent'))
+  assert.equal(markUpdate(CARD, 3, () => true), null)
 })
 
 test('audited commit: field first, then HEAD, then a single commit mention', () => {
@@ -249,12 +259,14 @@ test('BOM is kept and the frontmatter is still found', () => {
   assert.equal(readFields(out).next_step, 'b')
 })
 
-test('toggle flips only the checkbox; tasks without an id are read-only', () => {
+test('toggle flips only the checkbox; tasks without an id are found by position', () => {
   const line = '- [X] Pay · later  · p1 ^t-aaaa'
   assert.equal(toggleLine(line), '- [ ] Pay · later  · p1 ^t-aaaa')
-  const card = `${fm('x: 1')}\n## Tasks\n\n- [ ] No id here\n- [ ] Pay · later ^t-bbbb\n`
+  const card = `${fm('x: 1')}\n## Tasks\n\n- [ ] No id here\nA note between\n- [ ] Pay · later ^t-bbbb\n- [ ] Short id · p2 ^t-1uz\n`
   const tasks = readTasks(card)
-  assert.deepEqual(tasks.map(t => [t.id, t.readonly ?? false, t.text]), [['', true, 'No id here'], ['t-bbbb', false, 'Pay · later']])
+  assert.deepEqual(tasks.map(t => [t.id, t.at, t.text, t.p]), [['', 0, 'No id here', ''], ['t-bbbb', 1, 'Pay · later', ''], ['t-1uz', 2, 'Short id', 'p2']])
+  assert.match(replaceTask(card, 0, cur => toggleLine(cur.line)).text, /^- \[x\] No id here$/m)
+  assert.equal(replaceTask(card, 7, cur => cur.line), null)
   assert.throws(() => replaceTask(card.replace('^t-bbbb', '^t-bbbb\n- [ ] Again ^t-bbbb'), 't-bbbb', toggleLine), /appears twice/)
 })
 

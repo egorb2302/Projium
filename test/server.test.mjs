@@ -118,6 +118,41 @@ test('acceptance: a task edited in Obsidian is not overwritten by a stale toggle
   assert.match(fs.readFileSync(file, 'utf8'), /- \[ \] Next thing · due 2026-11-01 · p2 \^t-[a-z0-9]{4}\n/)
 })
 
+test('tasks without an id are toggled and edited by position; update items are checked off', async t => {
+  const { file, call } = await setup(t)
+  const extra = '- [ ] Written by an agent · in a hurry\n- [ ] Odd id · p2 ^t-1uz\n'
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('- [ ] Ship it · p1 ^t-aaaa\n', `- [ ] Ship it · p1 ^t-aaaa\n${extra}`).replace('## Program', '## Updates\n\nAll flags off.\n- u1 agent ^u-1\n- [x] u2 battles\n\n## Program'))
+  let p = (await call('GET', '/api/projects/demo')).json
+  assert.deepEqual(p.tasks.map(x => [x.id, x.text, x.at]), [['t-aaaa', 'Ship it', 0], ['', 'Written by an agent · in a hurry', 1], ['t-1uz', 'Odd id', 2]])
+  assert.deepEqual(p.updates.map(u => [u.text, u.item, u.done, u.at]), [['All flags off.', false, false, undefined], ['u1 agent', true, false, 0], ['u2 battles', true, true, 1]])
+
+  const loose = p.tasks[1]
+  assert.equal((await call('POST', '/api/projects/demo/task', { op: 'toggle', at: 1, expected: { ...loose, text: 'other' } })).status, 409)
+  assert.equal((await call('POST', '/api/projects/demo/task', { op: 'toggle', expected: loose })).status, 400, 'a task needs an id or a position')
+  assert.equal((await call('POST', '/api/projects/demo/task', { op: 'toggle', at: 1, expected: loose })).status, 200)
+  assert.match(fs.readFileSync(file, 'utf8'), /^- \[x\] Written by an agent · in a hurry$/m, 'a toggle flips only the box and adds no id')
+  p = (await call('GET', '/api/projects/demo')).json
+  const edited = await call('POST', '/api/projects/demo/task', { op: 'edit', at: 1, expected: p.tasks[1], task: { text: 'Written by an agent · done', p: 'p3' } })
+  assert.equal(edited.status, 200)
+  assert.match(fs.readFileSync(file, 'utf8'), /^- \[x\] Written by an agent · done · p3 \^t-[a-z0-9]{4}$/m, 'an edit gives the task an id')
+  assert.equal((await call('POST', '/api/projects/demo/task', { op: 'edit', id: 't-1uz', expected: p.tasks[2], task: { text: 'Odd id kept' } })).status, 200)
+  assert.match(fs.readFileSync(file, 'utf8'), /^- \[ \] Odd id kept · p2 \^t-1uz$/m)
+  assert.equal((await call('POST', '/api/projects/demo/task', { op: 'edit', id: 't-1uz', expected: { ...p.tasks[2], text: 'Odd id kept' }, task: { text: 'ends like · p1', p: '' } })).status, 400)
+
+  const u1 = p.updates[1]
+  assert.equal((await call('POST', '/api/projects/demo/update', { at: 0, done: true, expected: { text: u1.text, done: true } })).status, 409)
+  assert.equal((await call('POST', '/api/projects/demo/update', { at: 0, done: 'yes', expected: u1 })).status, 400)
+  const marked = await call('POST', '/api/projects/demo/update', { at: 0, done: true, expected: { text: u1.text, done: u1.done } })
+  assert.equal(marked.status, 200)
+  assert.deepEqual(marked.json.updates.filter(u => u.item).map(u => u.done), [true, true])
+  const text = fs.readFileSync(file, 'utf8')
+  assert.match(text, /^- \[x\] u1 agent \^u-1$/m)
+  assert.match(text, /^All flags off\.$/m)
+  assert.equal((await call('POST', '/api/projects/demo/update', { at: 1, done: false, expected: { text: 'u2 battles', done: true } })).status, 200)
+  assert.match(fs.readFileSync(file, 'utf8'), /^- \[ \] u2 battles$/m)
+  assert.equal((await call('POST', '/api/projects/demo/update', { at: 5, done: true, expected: { text: 'x', done: false } })).status, 409)
+})
+
 test('rejects bad values, foreign hosts and origins, and paths outside the projects folder', async t => {
   const { call, port } = await setup(t)
   assert.equal((await call('POST', '/api/projects/demo/field', { key: 'stage', value: 'shipped', expected: 'fixes' })).status, 400)

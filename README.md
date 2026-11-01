@@ -7,14 +7,14 @@ A local dashboard over your project notes, for builders who ship client projects
 It reads your cards and the project repos and shows, per project:
 
 - stage, next step, open tasks with due dates and priorities, updates, timeline;
-- time from spec to design pick, first push and mainnet, with medians across projects;
+- time from spec to design pick, first push and mainnet, with medians across projects, a chart of build time by start date and a per-project breakdown by phase;
 - whether the last readiness audit still matches the code (commits and uncommitted files after the audited commit);
 - uptime of the live site and which feature flags are on in prod;
 - where the build time went, from Claude Code transcripts: Claude working, review, waiting for you, pauses (only timestamps and event kinds are kept; message text is never stored or shown).
 
 The list starts with what needs you: overdue and p1 tasks, deadlines in the next two days, sites that are down. Press `/` to search, sort by urgency, or switch to a dense table.
 
-You can edit card fields and tasks from the dashboard. It writes one field or one task line at a time and never overwrites something you changed in Obsidian meanwhile: it shows what is there now and asks.
+You can edit card fields and tasks from the dashboard, including tasks your agents wrote without a Projium id, and check off updates. It writes one field or one line at a time and never overwrites something you changed in Obsidian meanwhile: it shows what is there now and asks.
 
 Optional: a daily digest to Telegram (or any command you name).
 
