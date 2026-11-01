@@ -337,7 +337,7 @@ export const createApp = ({
 
     try {
       if (parts[0] === 'api' && parts[1] === 'meta' && req.method === 'GET' && parts.length === 2)
-        return send(res, 200, { app: 'projium', version: VERSION, instance: instanceId(projectsRoot) })
+        return send(res, 200, { app: 'projium', version: VERSION, instance: instanceId(projectsRoot), config: configFile ? instanceId(configFile) : null })
       if (parts[0] === 'api' && parts[1] === 'shutdown' && req.method === 'POST' && parts.length === 2) {
         await readBody(req)
         if (!onShutdown) return send(res, 404, { error: 'not found' })

@@ -102,10 +102,27 @@ test('a mixed notes folder gets a filter on the key its project notes share', as
   const notes = path.join(home, 'Notes')
   for (const n of ['Acme', 'Beta', 'Gamma']) write(path.join(notes, `${n}.md`), `---\ntype: client-project\nstatus: active\n---\n# ${n}\n`)
   write(path.join(notes, '2026-11-01.md'), '---\nstatus: draft\n---\n# day\n')
-  assert.deepEqual(filterHint(notes, 'status', false), { key: 'type', value: 'client-project', n: 3, out: 1 })
+  write(path.join(notes, '2026-11-02.md'), '---\nproject: Acme\n---\n# day 2\n')
+  write(path.join(notes, 'Ideas.md'), '---\ntags: inbox\n---\n# ideas\n')
+  assert.deepEqual(filterHint(notes, 'status', false), { key: 'type', value: 'client-project', n: 3, out: 2 })
   const r = await runSetup({ here, file: path.join(here, 'c.json'), io: { yes: true, say: () => {}, ask: async () => '' }, notes, home, env: {}, platform: 'linux', port: 3299 })
   assert.deepEqual(r.config.cards.filter, { type: 'client-project' })
   assert.equal(r.projects, 3)
+  write(path.join(notes, 'Contact.md'), '---\ntype: Client-Project\n---\n# a contact, not a project\n')
+  assert.equal(filterHint(notes, 'status', false), null)
+})
+
+test('setup takes the next port when the same notes folder is served for another config', async t => {
+  const home = temp(t)
+  const here = temp(t)
+  const notes = path.join(home, 'Projects')
+  fs.mkdirSync(notes)
+  const file = path.join(here, 'c.json')
+  const asked = []
+  const probe = async port => (asked.push(port), port === 3210 ? { running: true, projium: true, sameInstance: true, config: 'another-config' } : { running: false })
+  const r = await runSetup({ here, file, io: { yes: true, say: () => {}, ask: async () => '' }, notes, home, env: {}, platform: 'linux', probe })
+  assert.equal(r.config.port, 3211)
+  assert.deepEqual(asked, [3210, 3211])
 })
 
 test('the proposal skips headings and status words the config would refuse', () => {

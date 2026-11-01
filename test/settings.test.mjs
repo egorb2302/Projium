@@ -9,7 +9,8 @@ import { saveConfig } from '../lib/init.mjs'
 import { loadConfig } from '../lib/config.mjs'
 import { Conflict } from '../lib/store.mjs'
 import { createApp } from '../server.mjs'
-import { writeRun, stopServer } from '../lib/control.mjs'
+import { writeRun, stopServer, findServer } from '../lib/control.mjs'
+import { instanceId } from '../lib/config.mjs'
 
 const rm = dir => fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 })
 const temp = (t, manual = false) => {
@@ -237,7 +238,37 @@ test('editing a target keeps the keys the form does not show, and drops the RPC 
   applySettings(here, file, { hash: settingsHash(file), watch: [{ op: 'update', name: 'gas', target: { name: 'gas', kind: 'balance', chain: 'evm', address: `0x${'a'.repeat(40)}`, min: '0.3', rpc: '' } }] })
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')).watch.targets[0], { unit: 'BNB', rpc: 'https://rpc.example/k', recoverAfter: 4, name: 'gas', kind: 'balance', chain: 'evm', address: `0x${'a'.repeat(40)}`, min: 0.3 })
   applySettings(here, file, { hash: settingsHash(file), watch: [{ op: 'update', name: 'gas', target: { name: 'gas', kind: 'balance', chain: 'solana', address: '11111111111111111111111111111111', min: 1 } }] })
-  assert.equal('rpc' in JSON.parse(fs.readFileSync(file, 'utf8')).watch.targets[0], false)
+  const moved = JSON.parse(fs.readFileSync(file, 'utf8')).watch.targets[0]
+  assert.equal('rpc' in moved, false)
+  assert.equal('unit' in moved, false)
+  assert.equal(moved.recoverAfter, 4)
+})
+
+test('setup finds only the dashboard of its own config, also when the path differs in case on Windows', async t => {
+  const dir = temp(t, true)
+  fs.mkdirSync(path.join(dir, 'notes'))
+  const a = path.join(dir, 'a.json')
+  const b = path.join(dir, 'b.json')
+  const app = createApp({ projectsRoot: path.join(dir, 'notes'), reposRoot: dir, dbFile: path.join(dir, 'data', 't.db'), port: 0, checkHealth: false, configFile: a })
+  const port = await app.start()
+  t.after(async () => {
+    await app.stop()
+    rm(dir)
+  })
+  for (const f of [a, b]) fs.writeFileSync(f, JSON.stringify({ projectsDir: 'notes', reposDir: '.', dbFile: 'data/t.db', port }))
+  const meta = await (await fetch(`http://127.0.0.1:${port}/api/meta`)).json()
+  assert.equal(meta.config, instanceId(a))
+  assert.deepEqual(await findServer(dir, a), { port, instance: instanceId(path.join(dir, 'notes')) })
+  assert.equal(await findServer(dir, b), null)
+  if (process.platform === 'win32') {
+    fs.writeFileSync(b, JSON.stringify({ projectsDir: 'notes', reposDir: '.', dbFile: 'data/t.db', port: port === 65535 ? port - 1 : port + 1 }))
+    writeRun(loadConfig(dir, b), port, a.toUpperCase())
+    assert.equal((await findServer(dir, b)), null)
+    writeRun({ ...loadConfig(dir, b), projectsDir: path.join(dir, 'notes') }, port, a.toUpperCase())
+    const c = { ...loadConfig(dir, a), port: port === 65535 ? port - 1 : port + 1 }
+    fs.writeFileSync(a, JSON.stringify({ projectsDir: 'notes', reposDir: '.', dbFile: 'data/t.db', port: c.port }))
+    assert.deepEqual(await findServer(dir, a), { port, instance: instanceId(path.join(dir, 'notes')) })
+  }
 })
 
 test('a digest time is checked even when DIGEST_AT overrides it', t => {
