@@ -59,6 +59,8 @@ Afterwards, everything else is in the dashboard:
 
 ![New project from repos](docs/screenshot-new.png)
 
+![A client status page](docs/screenshot-client.png)
+
 ## Let your AI agent set it up
 
 Paste this to Claude Code, Codex or any agent that can run commands on your computer:
