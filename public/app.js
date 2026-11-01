@@ -1104,6 +1104,7 @@ const renderSettings = async n => {
 }
 
 const SHARE_SENSITIVE = ['status', 'next_step', 'tasks']
+const shareDrafts = new Map()
 
 const sharePanel = (p, info, redraw) => {
   if (!info?.enabled) return null
@@ -1113,6 +1114,7 @@ const sharePanel = (p, info, redraw) => {
   const post = async (op, okText) => {
     try {
       await api('/api/settings', { hash: info.hash, share: [op] })
+      shareDrafts.delete(p.name)
       toast(okText)
       redraw()
     } catch (e) {
@@ -1125,9 +1127,11 @@ const sharePanel = (p, info, redraw) => {
       h('button', { class: 'primary', onclick: () => post({ op: 'set', project: p.name, show: info.safe }, t('shareEnabled')) }, t('shareEnable')))
     return box
   }
-  const boxes = info.show.map(k => h('input', { type: 'checkbox', value: k, checked: own.show.includes(k) }))
-  const title = h('input', { value: own.title ?? '', placeholder: p.name, maxlength: 80, 'aria-label': t('shareTitle') })
-  const lang = h('select', { class: 'narrow', 'aria-label': t('shareLang') }, ['', 'en', 'ru'].map(l => h('option', { value: l, selected: (own.lang ?? '') === l }, l ? (l === 'ru' ? 'Русский' : 'English') : t('shareLangDefault'))))
+  const draft = shareDrafts.get(p.name) ?? { show: own.show, title: own.title ?? '', lang: own.lang ?? '' }
+  const keep = () => shareDrafts.set(p.name, { show: boxes.filter(b => b.checked).map(b => b.value), title: title.value, lang: lang.value })
+  const boxes = info.show.map(k => h('input', { type: 'checkbox', value: k, checked: draft.show.includes(k), onchange: () => keep() }))
+  const title = h('input', { value: draft.title, placeholder: p.name, maxlength: 80, 'aria-label': t('shareTitle'), oninput: () => keep() })
+  const lang = h('select', { class: 'narrow', 'aria-label': t('shareLang'), onchange: () => keep() }, ['', 'en', 'ru'].map(l => h('option', { value: l, selected: draft.lang === l }, l ? (l === 'ru' ? 'Русский' : 'English') : t('shareLangDefault'))))
   const save = () => post({ op: 'set', project: p.name, show: boxes.filter(b => b.checked).map(b => b.value), title: title.value.trim(), lang: lang.value }, t('shareSaved'))
   const exportNow = async e => {
     const b = e.currentTarget

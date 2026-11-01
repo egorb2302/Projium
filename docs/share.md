@@ -19,7 +19,7 @@ You choose per project. The safe set is on by default; the rest you turn on your
 
 Never on the page: file paths, repo names, other frontmatter keys, task priorities, done tasks, timeline rows, wallet addresses and balances (balance targets and their incidents are left out), alert details, and anything from other projects. The page says when it was generated, in the zone of your card times.
 
-The page has `noindex` set and the export folder gets a `robots.txt` that asks search engines to stay away. Its folder name ends in a random part (`acme-shop-k3x9p2`), so the address cannot be guessed from the project name.
+The page has `noindex` set, and the export folder gets a `robots.txt` that asks search engines to stay away and an empty `index.html`, so a host that lists folders shows nothing. A page turned on from the dashboard gets a folder name ending in a random part (`acme-shop-k3x9p2`), so its address cannot be guessed from the project name; the list of pages Projium wrote is kept next to its database, not in the export folder. Doctor names pages whose address is just the project name.
 
 ## Turn it on
 
@@ -43,7 +43,7 @@ Or in `tracker.config.json`:
 | `every` | `0` | Minutes between automatic exports; `0` exports only when you ask |
 | `projects` | none | Card name → what to show. `show` defaults to the safe set; `slug` is the page's folder name (the dashboard makes a random one) |
 
-Sharing settings are read at each export, so turning a page on or off needs no restart. Export from the command line with `npx github:egorb2302/Projium share` (or `node bin/projium.mjs share` in a clone) while the dashboard runs. A page you stop sharing is deleted from the folder at the next export; files Projium did not write are never touched.
+Sharing settings are read at each export, so turning a page on or off needs no restart. Export from the command line with `npx github:egorb2302/Projium share` (or `node bin/projium.mjs share` in a clone) while the dashboard runs. **Stop sharing** deletes the page from the folder at once, and changes to a page that was exported before are written at once too (a hand edit of the config takes effect at the next export). Moving the export folder deletes the pages from the old one. Projium never writes over or deletes a file it did not write: a folder name taken by something else is reported, not used. Copies you already put online stay until you remove them there.
 
 ## Put it online
 

@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import http from 'node:http'
-import { shareConfig, shareUnknownKeys, pageData, renderPage, writePages, slugOf, newSlug, SAFE, SHOW } from '../lib/share.mjs'
+import { shareConfig, shareUnknownKeys, pageData, renderPage, writePages, manifestFor, exportedSlugs, slugOf, newSlug, SAFE, SHOW } from '../lib/share.mjs'
 import { createApp } from '../server.mjs'
 import { diagnose } from '../lib/doctor.mjs'
 
@@ -97,6 +97,9 @@ test('a client page shows only the allowed parts, and never tasks, next step, st
   assert.match(html, /Updated 1 Nov 2026, 15:00 UTC\+03:00/)
   assert.match(html, /<meta name="robots" content="noindex, nofollow">/)
   assert.match(html, /<meta property="og:title" content="Acme">/)
+  assert.match(html, /<meta property="og:description" content="Acme, in review: progress, updates and uptime">/)
+  assert.match(html, /<title>Acme · status<\/title>/)
+  assert.ok(!/eyebrow|Project status/.test(html))
   assert.ok(!/<script/i.test(html))
   const all = renderPage(pageData({ card: cardView(), show: SHOW, now, health, incidents })).replace(/<style>[\s\S]*?<\/style>/, '')
   assert.match(all, /SECRET-STATUS/)
@@ -118,34 +121,73 @@ test('a client page escapes what it prints and falls back to update counts', () 
   assert.ok(!html.includes('Uptime'))
 })
 
-test('export writes one folder per page, a robots file and removes only pages it wrote before', t => {
-  const dir = path.join(temp(t), 'share')
+test('a client page shows only the name of a linked note, never its path', () => {
+  const card = { ...cardView(), updates: [{ item: true, done: false, text: 'u1 per [[Clients/Acme/Contract 2026]] and [[Acme#Pricing]], see ![[Specs/flow.md]] and [[#Scope]] and [[Old/x|the brief]]' }] }
+  const html = renderPage(pageData({ card, show: ['updates'], now: Date.now() })).replace(/<style>[\s\S]*?<\/style>/, '')
+  assert.match(html, /u1 per Contract 2026 and Acme, see flow and Scope and the brief/)
+  for (const leak of ['Clients/', 'Pricing', 'Specs/', '[[', 'Old/']) assert.ok(!html.includes(leak), leak)
+})
+
+test('export writes one folder per page, robots and an empty root page, and removes only pages it wrote before', t => {
+  const root = temp(t)
+  const dir = path.join(root, 'share')
+  const manifest = path.join(root, 'data', 'share-x.json')
   fs.mkdirSync(path.join(dir, 'mine'), { recursive: true })
   fs.writeFileSync(path.join(dir, 'mine', 'index.html'), 'owner file')
-  const r1 = writePages(dir, [{ name: 'A', slug: 'a-1', html: 'A' }, { name: 'B', slug: 'b-1', html: 'B' }])
+  const r1 = writePages(dir, [{ name: 'A', slug: 'a-1', html: 'A' }, { name: 'B', slug: 'b-1', html: 'B' }], { manifest })
   assert.deepEqual(r1.written.map(x => x.slug), ['a-1', 'b-1'])
   assert.equal(fs.readFileSync(path.join(dir, 'a-1', 'index.html'), 'utf8'), 'A')
   assert.equal(fs.readFileSync(path.join(dir, 'robots.txt'), 'utf8'), 'User-agent: *\nDisallow: /\n')
-  fs.writeFileSync(path.join(dir, 'manifest-tamper'), '')
-  const m = path.join(dir, '.projium-share.json')
-  fs.writeFileSync(m, JSON.stringify({ slugs: ['a-1', 'b-1', '../mine', 'mine/..'] }))
-  const r2 = writePages(dir, [{ name: 'A', slug: 'a-1', html: 'A2' }])
+  assert.match(fs.readFileSync(path.join(dir, 'index.html'), 'utf8'), /<meta name="robots" content="noindex, nofollow">\n<title>Status pages<\/title>\n<\/head>\n<body><\/body>/)
+  assert.deepEqual(fs.readdirSync(dir).sort(), ['a-1', 'b-1', 'index.html', 'mine', 'robots.txt'])
+  assert.deepEqual(exportedSlugs(manifest), ['a-1', 'b-1'])
+  fs.writeFileSync(manifest, JSON.stringify({ slugs: ['a-1', 'b-1', '../mine', 'mine/..'] }))
+  const r2 = writePages(dir, [{ name: 'A', slug: 'a-1', html: 'A2' }], { manifest })
   assert.deepEqual(r2.removed, ['b-1'])
   assert.equal(fs.existsSync(path.join(dir, 'b-1')), false)
   assert.equal(fs.readFileSync(path.join(dir, 'mine', 'index.html'), 'utf8'), 'owner file')
   assert.equal(fs.readFileSync(path.join(dir, 'a-1', 'index.html'), 'utf8'), 'A2')
-  writePages(dir, [], ['a-1'])
+  writePages(dir, [], { keep: ['a-1'], manifest })
   assert.equal(fs.readFileSync(path.join(dir, 'a-1', 'index.html'), 'utf8'), 'A2')
+  assert.notEqual(manifestFor(path.join(root, 'data'), dir), manifestFor(path.join(root, 'data'), path.join(root, 'other')))
 })
 
-const serve = async (t, share) => {
+test('export never overwrites a page file it did not write, nor writes through a linked folder', t => {
+  const root = temp(t)
+  const dir = path.join(root, 'share')
+  const manifest = path.join(root, 'm.json')
+  fs.mkdirSync(path.join(dir, 'theirs-1'), { recursive: true })
+  fs.writeFileSync(path.join(dir, 'theirs-1', 'index.html'), 'owner page')
+  const outside = path.join(root, 'outside')
+  fs.mkdirSync(outside)
+  fs.symlinkSync(outside, path.join(dir, 'linked-1'), 'junction')
+  const r = writePages(dir, [{ name: 'A', slug: 'theirs-1', html: 'A' }, { name: 'B', slug: 'linked-1', html: 'B' }, { name: 'C', slug: 'c-1', html: 'C' }], { manifest })
+  assert.deepEqual(r.written.map(x => x.slug), ['c-1'])
+  assert.deepEqual(r.skipped.map(x => x.slug), ['theirs-1', 'linked-1'])
+  assert.equal(fs.readFileSync(path.join(dir, 'theirs-1', 'index.html'), 'utf8'), 'owner page')
+  assert.deepEqual(fs.readdirSync(outside), [])
+  fs.writeFileSync(manifest, JSON.stringify({ slugs: ['c-1', 'linked-1'] }))
+  fs.writeFileSync(path.join(outside, 'index.html'), 'outside page')
+  writePages(dir, [], { manifest })
+  assert.equal(fs.readFileSync(path.join(outside, 'index.html'), 'utf8'), 'outside page')
+  assert.equal(fs.existsSync(path.join(dir, 'c-1')), false)
+})
+
+test('an export with nothing shared and nothing written before creates no folder', t => {
+  const root = temp(t)
+  const dir = path.join(root, 'share')
+  assert.deepEqual(writePages(dir, [], { manifest: path.join(root, 'm.json') }), { written: [], removed: [], skipped: [] })
+  assert.equal(fs.existsSync(dir), false)
+})
+
+const serve = async (t, share, clock = () => Date.now()) => {
   const here = temp(t, true)
   const projects = path.join(here, 'projects')
   fs.mkdirSync(path.join(projects, 'Acme'), { recursive: true })
   fs.writeFileSync(path.join(projects, 'Acme', 'Acme.md'), SECRET_CARD)
   const file = path.join(here, 'tracker.config.json')
   fs.writeFileSync(file, JSON.stringify({ projectsDir: 'projects', reposDir: '.', share }))
-  const app = createApp({ projectsRoot: projects, reposRoot: here, dbFile: path.join(here, 'db', 't.db'), port: 0, checkHealth: false, configFile: file })
+  const app = createApp({ projectsRoot: projects, reposRoot: here, dbFile: path.join(here, 'db', 't.db'), port: 0, checkHealth: false, configFile: file, clock })
   const port = await app.start()
   t.after(async () => {
     await app.stop()
@@ -183,6 +225,8 @@ test('the share API lists pages, exports them and previews one with its own CSP'
   const html = fs.readFileSync(path.join(here, 'share', 'acme-k2', 'index.html'), 'utf8')
   assert.ok(!html.includes('SECRET'))
   assert.ok(!html.includes(here))
+  assert.deepEqual(fs.readdirSync(path.join(here, 'share')).sort(), ['acme-k2', 'index.html', 'robots.txt'])
+  assert.deepEqual(exportedSlugs(manifestFor(path.join(here, 'db'), path.join(here, 'share'))), ['acme-k2'])
   const preview = await call('GET', '/share/acme-k2')
   assert.equal(preview.status, 200)
   assert.match(preview.headers['content-type'], /text\/html/)
@@ -201,16 +245,77 @@ test('doctor lists the shared projects and names those without a card', async t 
   const r = await diagnose(here, { file, probe: async () => ({ running: false }) })
   assert.deepEqual(r.config.share, { projects: ['Acme', 'Gone'], dir: path.join(here, 'share'), every: 0 })
   assert.ok(r.hints.some(h => /share lists project\(s\) with no card: Gone/.test(h)))
+  assert.ok(r.hints.some(h => /address of Acme, Gone is the project name/.test(h)))
 })
 
 test('pages are exported on the timer set by share.every, and not before it is due', async t => {
-  const { here, app } = await serve(t, { every: 30, projects: { Acme: { slug: 'acme-t1' } } })
+  let now = Date.now()
+  const { here, app } = await serve(t, { every: 30, projects: { Acme: { slug: 'acme-t1' } } }, () => now)
   const page = path.join(here, 'share', 'acme-t1', 'index.html')
   await app.shareTick()
   assert.ok(fs.existsSync(page))
   fs.rmSync(page)
+  now += 29 * 60e3
   await app.shareTick()
   assert.equal(fs.existsSync(page), false)
+  now += 2 * 60e3
+  await app.shareTick()
+  assert.ok(fs.existsSync(page))
+})
+
+test('stopping the last shared page deletes its file at once, and so does moving the folder', async t => {
+  const { here, file, call } = await serve(t, { projects: { Acme: { slug: 'acme-z9' } } })
+  await call('POST', '/api/share/export', {})
+  const page = path.join(here, 'share', 'acme-z9', 'index.html')
+  assert.ok(fs.existsSync(page))
+  let s = (await call('GET', '/api/settings')).json
+  await call('POST', '/api/settings', { hash: s.hash, share: [{ op: 'remove', project: 'Acme' }] })
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).share, undefined)
+  assert.equal(fs.existsSync(page), false)
+  s = (await call('GET', '/api/settings')).json
+  await call('POST', '/api/settings', { hash: s.hash, share: [{ op: 'set', project: 'Acme' }] })
+  await call('POST', '/api/share/export', {})
+  const slug = JSON.parse(fs.readFileSync(file, 'utf8')).share.projects.Acme.slug
+  assert.ok(fs.existsSync(path.join(here, 'share', slug, 'index.html')))
+  s = (await call('GET', '/api/settings')).json
+  await call('POST', '/api/settings', { hash: s.hash, set: { shareDir: 'pages' } })
+  assert.equal(fs.existsSync(path.join(here, 'share', slug)), false)
+  assert.ok(fs.existsSync(path.join(here, 'pages', slug, 'index.html')))
+})
+
+test('changing what a page shows rewrites an exported page at once and keeps a hand-set address', async t => {
+  const { here, file, call } = await serve(t, { projects: { Acme: {} } })
+  await call('POST', '/api/share/export', {})
+  const page = path.join(here, 'share', 'acme', 'index.html')
+  assert.match(fs.readFileSync(page, 'utf8'), /In review/)
+  const s = (await call('GET', '/api/settings')).json
+  await call('POST', '/api/settings', { hash: s.hash, share: [{ op: 'set', project: 'Acme', show: ['updates'] }] })
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')).share.projects.Acme, { slug: 'acme', show: ['updates'] })
+  assert.ok(!fs.readFileSync(page, 'utf8').includes('In review'))
+})
+
+test('balance incidents do not push site incidents off the page', async t => {
+  const { here, call, app } = await serve(t, { projects: { Acme: { slug: 'acme-b1' } } })
+  const now = Date.now()
+  const add = app.db.prepare('insert into watch_incidents (target, signal, project, opened_at, closed_at) values (?, ?, ?, ?, ?)')
+  add.run('shop', 'up', 'Acme', now - 20 * 864e5, now - 20 * 864e5 + 600e3)
+  for (let i = 0; i < 40; i++) add.run('wallet', 'balance', 'Acme', now - i * 36e5, now - i * 36e5 + 60e3)
+  await call('POST', '/api/share/export', {})
+  const html = fs.readFileSync(path.join(here, 'share', 'acme-b1', 'index.html'), 'utf8')
+  assert.match(html, /Site unreachable/)
+  assert.ok(!html.includes('No incidents in the last 90 days'))
+})
+
+test('an export asked for while another runs starts again after it, with the newest settings', async t => {
+  const { here, file, app } = await serve(t, { projects: { Acme: { slug: 'acme-q1' } } })
+  const first = app.exportShare()
+  const cfg = JSON.parse(fs.readFileSync(file, 'utf8'))
+  cfg.share.projects.Acme.show = ['updates']
+  fs.writeFileSync(file, JSON.stringify(cfg))
+  const second = app.exportShare()
+  await first
+  await second
+  assert.ok(!fs.readFileSync(path.join(here, 'share', 'acme-q1', 'index.html'), 'utf8').includes('In review'))
 })
 
 test('sharing a project from its page writes the config with a random slug and needs no restart', async t => {

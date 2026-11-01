@@ -14,7 +14,7 @@ import { request } from './lib/net.mjs'
 import { createStreak } from './lib/streak.mjs'
 import { loadConfig, ignoreTest, formatOffset, instanceId, configPath } from './lib/config.mjs'
 import { settingsView, applySettings, settingsHash, restartKey } from './lib/settings.mjs'
-import { pageData, renderPage, writePages, CSP, SHOW, SAFE } from './lib/share.mjs'
+import { pageData, renderPage, writePages, manifestFor, exportedSlugs, CSP, SHOW, SAFE } from './lib/share.mjs'
 import { writeRun, clearRun, runFile } from './lib/control.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -111,31 +111,40 @@ export const createApp = ({
     link: e => `http://127.0.0.1:${bound}/#/${e.project && store.list().some(c => c.name === e.project) ? `p/${encodeURIComponent(e.project)}` : 'watch'}`,
   })
 
-  const shareSettings = () => (configFile ? loadConfig(here, configFile).share : shareOpt)
+  const shareSettings = () => (configFile ? loadConfig(here, configFile).share ?? { dir: path.join(path.dirname(path.resolve(configFile)), 'share'), every: 0, projects: [] } : shareOpt)
   let lastShare = null
   const sharePage = async (p, now = clock()) => {
     const v = await view(store.load(p.name), true)
     const health = db.prepare('select ts, code from health where project = ? and ts >= ? order by ts').all(p.name, now - 30 * 864e5)
-    const incidents = db.prepare('select signal, opened_at, closed_at from watch_incidents where project = ? and opened_at >= ? order by opened_at desc limit 30').all(p.name, now - 90 * 864e5).map(r => ({ signal: r.signal, openedAt: r.opened_at, closedAt: r.closed_at }))
+    const incidents = db.prepare("select signal, opened_at, closed_at from watch_incidents where project = ? and signal != 'balance' and opened_at >= ? order by opened_at desc limit 30").all(p.name, now - 90 * 864e5).map(r => ({ signal: r.signal, openedAt: r.opened_at, closedAt: r.closed_at }))
     return renderPage(pageData({ card: v, show: p.show, title: p.title, lang: p.lang ?? digestLang, now, health, incidents }))
   }
-  let shareBusy = null
-  const exportShare = () =>
-    (shareBusy ??= (async () => {
-      const s = shareSettings()
-      if (!s) return { dir: null, written: [], removed: [], failed: [] }
-      const pages = []
-      const failed = []
-      for (const p of s.projects)
-        try {
-          pages.push({ name: p.name, slug: p.slug, html: await sharePage(p) })
-        } catch (e) {
-          failed.push({ name: p.name, slug: p.slug, error: publicError(e) })
-        }
-      const r = writePages(s.dir, pages, failed.map(f => f.slug))
-      lastShare = clock()
-      return { dir: s.dir, ...r, failed }
-    })().finally(() => (shareBusy = null)))
+  const shareManifest = dir => manifestFor(path.dirname(dbFile), dir)
+  const runExport = async () => {
+    const s = shareSettings()
+    if (!s) return { dir: null, written: [], removed: [], failed: [] }
+    const pages = []
+    const failed = []
+    for (const p of s.projects)
+      try {
+        pages.push({ name: p.name, slug: p.slug, html: await sharePage(p) })
+      } catch (e) {
+        failed.push({ name: p.name, slug: p.slug, error: publicError(e) })
+      }
+    const r = writePages(s.dir, pages, { keep: failed.map(f => f.slug), manifest: shareManifest(s.dir) })
+    lastShare = clock()
+    return { dir: s.dir, written: r.written, removed: r.removed, failed: [...failed, ...r.skipped] }
+  }
+  let shareQueue = Promise.resolve()
+  const exportShare = () => {
+    const next = shareQueue.catch(() => {}).then(runExport)
+    shareQueue = next
+    return next
+  }
+  const clearShareDir = dir => {
+    const manifest = shareManifest(dir)
+    if (exportedSlugs(manifest).length) writePages(dir, [], { manifest })
+  }
   const shareTick = async () => {
     let s
     try {
@@ -143,7 +152,7 @@ export const createApp = ({
     } catch {
       return
     }
-    if (!s?.every || !s.projects.length || (lastShare != null && clock() - lastShare < s.every * 60e3)) return
+    if (!s?.every || (lastShare != null && clock() - lastShare < s.every * 60e3)) return
     await exportShare().catch(e => console.error(new Date().toISOString(), 'share export failed', String(e?.message ?? e).slice(0, 200)))
   }
 
@@ -409,7 +418,24 @@ export const createApp = ({
         if (!configFile) return send(res, 404, { error: 'settings are not available in this run' })
         if (req.method === 'GET') return send(res, 200, settingsView(here, configFile, startKey))
         if (req.method === 'POST') {
-          const r = applySettings(here, configFile, await readBody(req), { names: store.list().filter(c => !c.error).map(c => c.name) })
+          const body = await readBody(req)
+          const touchesShare = body.share != null || Object.hasOwn(body.set ?? {}, 'shareDir')
+          let oldDir = null
+          if (touchesShare)
+            try {
+              oldDir = shareSettings()?.dir ?? null
+            } catch {}
+          const r = applySettings(here, configFile, body, { names: store.list().filter(c => !c.error).map(c => c.name) })
+          if (touchesShare)
+            try {
+              const s = shareSettings()
+              const same = (a, b) => (process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b)
+              const moved = oldDir && s && !same(path.resolve(oldDir), path.resolve(s.dir)) && exportedSlugs(shareManifest(oldDir)).length > 0
+              if (moved) clearShareDir(oldDir)
+              if (s && (moved || exportedSlugs(shareManifest(s.dir)).length)) await exportShare()
+            } catch (e) {
+              console.error(new Date().toISOString(), 'share export failed', String(e?.message ?? e).slice(0, 200))
+            }
           return send(res, 200, { ...settingsView(here, configFile, startKey), backup: r.backup })
         }
       }
