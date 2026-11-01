@@ -579,14 +579,15 @@ test('targets dropped from the config are swept when the watcher starts, even wi
   assert.equal(r.sent.length, 2, 'a target added back starts a new incident and announces it')
 })
 
-test('URLs show without their query or user info, and an upper-case HTTPS still gets a certificate check', t => {
+test('URLs show without their query, fragment or user info, and an upper-case HTTPS still gets a certificate check', t => {
   const r = rig(t, { targets: [
     { name: 'a', kind: 'heartbeat', url: 'https://user:pw@app.example/health?token=SECRET', max: { stuckOps: 0 } },
     { name: 'b', kind: 'site', url: 'HTTPS://shop.example' },
     { name: 'c', kind: 'site', url: 'https://plain.example' },
+    { name: 'd', kind: 'site', url: 'https://hash.example/status#HASHSECRET' },
   ] })
   const st = r.w.status()
-  assert.deepEqual(st.targets.map(x => x.url), ['https://app.example/health?…', 'HTTPS://shop.example', 'https://plain.example'])
-  assert.ok(!JSON.stringify(st).includes('SECRET') && !JSON.stringify(st).includes('pw@'))
+  assert.deepEqual(st.targets.map(x => x.url), ['https://app.example/health?…', 'HTTPS://shop.example', 'https://plain.example', 'https://hash.example/status'])
+  assert.ok(!['SECRET', 'pw@', 'HASHSECRET'].some(s => JSON.stringify(st).includes(s)))
   assert.equal(st.targets[1].certDays, 14)
 })
