@@ -1021,7 +1021,8 @@ const renderSettings = async n => {
         const r = await api('/api/settings', { hash: s.hash, ...body })
         editing = null
         draw(r, !body.watch)
-        toast(okText ?? t('savedTo', r.file, r.backup ? r.backup.split(/[\\/]/).pop() : null))
+        const bad = shareTrouble(r)
+        toast(bad ?? okText ?? t('savedTo', r.file, r.backup ? r.backup.split(/[\\/]/).pop() : null), Boolean(bad))
       } catch (err) {
         toast(err.message, true)
         if (err.status === 409) route()
@@ -1105,6 +1106,10 @@ const renderSettings = async n => {
 
 const SHARE_SENSITIVE = ['status', 'next_step', 'tasks']
 const shareDrafts = new Map()
+const shareTrouble = r => {
+  const bad = r.share?.error ?? (r.share?.failed?.length ? `${r.share.failed[0].name}: ${r.share.failed[0].error}` : null)
+  return bad ? t('shareNotWritten', bad) : null
+}
 
 const sharePanel = (p, info, redraw) => {
   if (!info?.enabled) return null
@@ -1115,8 +1120,8 @@ const sharePanel = (p, info, redraw) => {
     try {
       const r = await api('/api/settings', { hash: info.hash, share: [op] })
       shareDrafts.delete(p.name)
-      const bad = r.share?.error ?? (r.share?.failed?.length ? `${r.share.failed[0].name}: ${r.share.failed[0].error}` : null)
-      toast(bad ? t('shareNotWritten', bad) : okText, Boolean(bad))
+      const bad = shareTrouble(r)
+      toast(bad ?? okText, Boolean(bad))
       redraw()
     } catch (e) {
       toast(e.message, true)
@@ -1128,14 +1133,16 @@ const sharePanel = (p, info, redraw) => {
       h('button', { class: 'primary', onclick: () => post({ op: 'set', project: p.name, show: info.safe }, t('shareEnabled')) }, t('shareEnable')))
     return box
   }
-  const draft = shareDrafts.get(p.name) ?? { show: own.show, title: own.title ?? '', lang: own.lang ?? '' }
   const saved = d => [...d.show].sort().join() === [...own.show].sort().join() && d.title.trim() === (own.title ?? '') && d.lang === (own.lang ?? '')
+  if (shareDrafts.has(p.name) && saved(shareDrafts.get(p.name))) shareDrafts.delete(p.name)
+  const draft = shareDrafts.get(p.name) ?? { show: own.show, title: own.title ?? '', lang: own.lang ?? '' }
   const unsaved = h('p', { class: 'small warn-line', role: 'status' }, t('shareUnsaved'))
-  const exportBtn = h('button', { onclick: e => exportNow(e) }, t('shareExport'))
+  const exportBtn = h('button', { onclick: () => exportNow() }, t('shareExport'))
+  let exporting = false
   const sync = () => {
     const dirty = shareDrafts.has(p.name)
     unsaved.hidden = !dirty
-    exportBtn.disabled = dirty
+    exportBtn.disabled = dirty || exporting
   }
   const keep = () => {
     const d = { show: boxes.filter(b => b.checked).map(b => b.value), title: title.value, lang: lang.value }
@@ -1147,16 +1154,18 @@ const sharePanel = (p, info, redraw) => {
   const title = h('input', { value: draft.title, placeholder: p.name, maxlength: 80, 'aria-label': t('shareTitle'), oninput: () => keep() })
   const lang = h('select', { class: 'narrow', 'aria-label': t('shareLang'), onchange: () => keep() }, ['', 'en', 'ru'].map(l => h('option', { value: l, selected: draft.lang === l }, l ? (l === 'ru' ? 'Русский' : 'English') : t('shareLangDefault'))))
   const save = () => post({ op: 'set', project: p.name, show: boxes.filter(b => b.checked).map(b => b.value), title: title.value.trim(), lang: lang.value }, t('shareSaved'))
-  const exportNow = async e => {
-    const b = e.currentTarget
-    b.disabled = true
+  const exportNow = async () => {
+    exporting = true
+    sync()
     try {
       const r = await api('/api/share/export', {})
       toast(r.failed.length ? t('shareFailed', r.failed[0].name, r.failed[0].error) : t('shareExported', r.written.length), r.failed.length > 0)
       redraw()
     } catch (err) {
       toast(err.message, true)
-      b.disabled = false
+    } finally {
+      exporting = false
+      sync()
     }
   }
   box.append(head,

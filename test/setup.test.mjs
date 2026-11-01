@@ -9,6 +9,7 @@ import { Readable } from 'node:stream'
 import { defaultConfigFile, obsidianVaults, noteFolders, repoFolders, guessStage, propose, runSetup, lineReader, filterHint } from '../lib/setup.mjs'
 import { survey } from '../lib/survey.mjs'
 import { instanceId } from '../lib/config.mjs'
+import { commandFor } from '../lib/cli.mjs'
 
 const repo = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 
@@ -236,10 +237,19 @@ test('the projium command sets up from flags without questions and explains its 
   assert.equal((await cli(['frobnicate', '--config', file])).code, 1)
   const none = await cli(['start', '--config', path.join(home, 'none.json')])
   assert.equal(none.code, 1)
-  assert.match(none.out, /No config at .* yet\. Run node bin\/projium\.mjs setup/)
+  assert.ok(none.out.includes(`yet. Run node bin/projium.mjs setup --config "${path.join(home, 'none.json')}"`), none.out)
+  const idle = await cli(['share', '--config', file])
+  assert.equal(idle.code, 1)
+  assert.ok(idle.out.includes(`does not run; start it with node bin/projium.mjs start --config "${file}"`), idle.out)
   const bad = await cli(['setup', '--yes', '--no-start', '--notes', path.join(home, 'missing'), '--port', '3298', '--config', path.join(home, 'other.json')])
   assert.equal(bad.code, 1)
   assert.match(bad.out, /Setup stopped: folder not found/)
+})
+
+test('command hints name the config file only when it is not the default one', () => {
+  assert.equal(commandFor(defaultConfigFile(repo, { env: {} }))('stop'), 'node bin/projium.mjs stop')
+  const other = path.join(repo, 'elsewhere', 'tracker.config.json')
+  assert.equal(commandFor(other)('restart'), `node bin/projium.mjs restart --config "${other}"`)
 })
 
 test('the projium command resolves relative paths from the folder npm was run in', async t => {

@@ -330,29 +330,60 @@ test('an export asked for while another runs starts again after it, with the new
   assert.ok(!fs.readFileSync(page, 'utf8').includes('In review'))
 })
 
-test('moving the folder clears the old one only after an export that already runs', async t => {
-  const { here, file, call, app } = await serve(t, { projects: { Acme: { slug: 'acme-m2' } } })
-  await call('POST', '/api/share/export', {})
-  const old = path.join(here, 'share', 'acme-m2', 'index.html')
-  let open
-  const running = app.queueShare(() => new Promise(r => (open = r)))
-  const s = (await call('GET', '/api/settings')).json
-  const moved = call('POST', '/api/settings', { hash: s.hash, set: { shareDir: 'pages' } })
-  const dirOf = () => {
+const written = async (file, dir) => {
+  const now = () => {
     try {
       return JSON.parse(fs.readFileSync(file, 'utf8')).share?.dir
     } catch {
       return null
     }
   }
-  while (dirOf() !== 'pages') await new Promise(r => setTimeout(r, 10))
+  while (now() !== dir) await new Promise(r => setTimeout(r, 10))
   await new Promise(r => setTimeout(r, 50))
-  assert.ok(fs.existsSync(old))
-  open()
+}
+
+test('moving the folder clears the old one only after an export that already runs', async t => {
+  const { here, file, call, app } = await serve(t, { projects: { Acme: { slug: 'acme-m2' } } })
+  await call('POST', '/api/share/export', {})
+  const old = path.join(here, 'share', 'acme-m2', 'index.html')
+  let open
+  const running = app.queueShare(() => new Promise(r => (open = r)))
+  let moved
+  try {
+    const s = (await call('GET', '/api/settings')).json
+    moved = call('POST', '/api/settings', { hash: s.hash, set: { shareDir: 'pages' } })
+    await written(file, 'pages')
+    assert.ok(fs.existsSync(old))
+  } finally {
+    open()
+  }
   await running
   assert.equal((await moved).status, 200)
   assert.equal(fs.existsSync(path.join(here, 'share', 'acme-m2')), false)
   assert.ok(fs.existsSync(path.join(here, 'pages', 'acme-m2', 'index.html')))
+})
+
+test('a share change during the very first export cleans what that export writes', async t => {
+  const { here, file, call, app } = await serve(t, { projects: { Acme: { slug: 'acme-r1' } } })
+  const oldDir = path.join(here, 'share')
+  let open
+  const gate = new Promise(r => (open = r))
+  const running = app.queueShare(async () => {
+    await gate
+    return writePages(oldDir, [{ name: 'Acme', slug: 'acme-r1', html: 'old' }], { manifest: manifestFor(path.join(here, 'db'), oldDir) })
+  })
+  let moved
+  try {
+    const s = (await call('GET', '/api/settings')).json
+    moved = call('POST', '/api/settings', { hash: s.hash, set: { shareDir: 'pages' } })
+    await written(file, 'pages')
+  } finally {
+    open()
+  }
+  await running
+  assert.equal((await moved).status, 200)
+  assert.equal(fs.existsSync(path.join(oldDir, 'acme-r1')), false)
+  assert.ok(fs.existsSync(path.join(here, 'pages', 'acme-r1', 'index.html')))
 })
 
 test('a share change reports pages the export folder could not take', async t => {

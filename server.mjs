@@ -432,12 +432,15 @@ export const createApp = ({
             try {
               const s = shareSettings()
               const same = (a, b) => (process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b)
-              const moved = oldDir && s && !same(path.resolve(oldDir), path.resolve(s.dir)) && exportedSlugs(shareManifest(oldDir)).length > 0
-              if (moved) await queued(() => clearShareDir(oldDir))
-              if (s && (moved || exportedSlugs(shareManifest(s.dir)).length)) {
-                const x = await exportShare()
-                share = { removed: x.removed, failed: x.failed }
-              }
+              const elsewhere = oldDir && s && !same(path.resolve(oldDir), path.resolve(s.dir))
+              const x = s
+                ? await queued(() => {
+                    const moved = elsewhere && exportedSlugs(shareManifest(oldDir)).length > 0
+                    if (moved) clearShareDir(oldDir)
+                    return moved || exportedSlugs(shareManifest(s.dir)).length ? runExport() : null
+                  })
+                : null
+              if (x) share = { removed: x.removed, failed: x.failed }
             } catch (e) {
               console.error(new Date().toISOString(), 'share export failed', String(e?.message ?? e).slice(0, 200))
               share = { error: publicError(e) }
