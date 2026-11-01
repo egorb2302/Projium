@@ -354,7 +354,7 @@ const writer = (p, what, rerender) => async body => {
   } catch (e) {
     toast(e.status === 409 ? t('reloaded', e.message) : e.message, true)
     if (e.status === 409) route()
-    else rerender(p)
+    else if (body.op !== 'edit' && body.op !== 'add') rerender(p)
   }
 }
 

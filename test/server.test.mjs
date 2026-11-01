@@ -158,6 +158,12 @@ test('tasks without an id are toggled and edited by position; update items are c
   assert.equal((await call('POST', '/api/projects/demo/task', { op: 'toggle', at: 0, expected: p.tasks[0] })).status, 409, 'a task line added above shifts positions; expected catches it')
   assert.equal((await call('POST', '/api/projects/demo/update', { at: 0, done: false, expected: { text: p.updates[1].text, done: true, id: 'u-1' } })).status, 409)
   assert.equal(fs.readFileSync(file, 'utf8'), before)
+
+  const renamed = before.replace('u1 agent ^u-1', 'u1 agent ^u-9')
+  fs.writeFileSync(file, renamed)
+  assert.equal((await call('POST', '/api/projects/demo/update', { at: 1, done: false, expected: { text: 'u1 agent', done: true, id: 'u-1' } })).status, 409, 'same text, another block id')
+  assert.equal(fs.readFileSync(file, 'utf8'), renamed)
+  assert.equal((await call('POST', '/api/projects/demo/update', { at: 1, done: false, expected: { text: 'u1 agent', done: true, id: 'u-9' } })).status, 200)
 })
 
 test('rejects bad values, foreign hosts and origins, and paths outside the projects folder', async t => {
