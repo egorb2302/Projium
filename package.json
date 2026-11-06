@@ -1,6 +1,6 @@
 {
   "name": "projium",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "description": "Local dashboard over Markdown project cards: stages, tasks, audits, uptime and build time from Claude Code transcripts",
   "license": "MIT",
   "private": true,

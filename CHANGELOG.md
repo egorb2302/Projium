@@ -2,6 +2,11 @@
 
 Versions follow [semantic versioning](https://semver.org); each one is a git tag (`v0.4.0`). After pulling a new version, restart the server (`npm run --silent stop`, then `npm run --silent start:bg`, or log in again with autostart).
 
+## 0.11.1 (2026-11-06)
+
+- Repos reached through a folder link (a Windows junction or a symlink in `reposDir`, for example after moving projects to another disk and leaving a link at the old path) now count the build time of sessions opened at either path: the time split reads the transcripts saved under the link path and under the real path.
+- **From repos** lists linked repos without a card too, not only real folders. Links to plain folders or to missing targets are still skipped.
+
 ## 0.11.0 (2026-11-01)
 
 - **Light theme:** a moon and sun switch next to RU and EN in the header. The choice is kept in the browser (`projium-theme`); dark stays the default. The light theme uses the paper, ink and amber of the Projium site.

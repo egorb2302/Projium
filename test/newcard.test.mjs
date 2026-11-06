@@ -123,6 +123,21 @@ test('repos without a card are listed by folder name; matched, declared, ignored
   assert.deepEqual(uncardedRepos(path.join(dir, 'missing'), cards), [])
 })
 
+test('repos without a card include repos linked into the repos folder, but not links to plain folders or nowhere', t => {
+  const dir = temp(t)
+  const repos = path.join(dir, 'repos')
+  const ssd = path.join(dir, 'ssd')
+  git(path.join(repos, 'here'))
+  git(path.join(ssd, 'moved'))
+  fs.mkdirSync(path.join(ssd, 'plain'))
+  fs.symlinkSync(path.join(ssd, 'moved'), path.join(repos, 'moved'), 'junction')
+  fs.symlinkSync(path.join(ssd, 'plain'), path.join(repos, 'plain'), 'junction')
+  fs.symlinkSync(path.join(ssd, 'gone'), path.join(repos, 'gone'), 'junction')
+  assert.deepEqual(uncardedRepos(repos, []).map(r => r.name).sort(), ['here', 'moved'])
+  const cards = [{ name: 'Moved', text: '---\nstage: development\n---\n', repoHint: null }]
+  assert.deepEqual(uncardedRepos(repos, cards).map(r => r.name), ['here'])
+})
+
 const serve = async (t, opts = {}) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-new-'))
   const projects = path.join(dir, 'projects')

@@ -159,6 +159,26 @@ test('transcript folders: the repo and its worktrees, never a longer name or an 
   assert.deepEqual(transcriptDirs(root, null), [])
 })
 
+test('a repo reached through a folder link also finds the transcripts of its real path', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-link-'))
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }))
+  const root = path.join(dir, 'transcripts')
+  const real = path.join(dir, 'ssd', 'demo')
+  const link = path.join(dir, 'hdd', 'demo')
+  fs.mkdirSync(real, { recursive: true })
+  fs.mkdirSync(path.dirname(link))
+  fs.symlinkSync(real, link, 'junction')
+  const realEnc = encodeDir(fs.realpathSync.native(real))
+  const linkEnc = encodeDir(link)
+  const plain = encodeDir(path.join(dir, 'hdd', 'plain'))
+  fs.mkdirSync(path.join(dir, 'hdd', 'plain'))
+  for (const d of [linkEnc, realEnc, `${realEnc}--claude-worktrees-brave-x`, `${realEnc}-other`, plain]) fs.mkdirSync(path.join(root, d), { recursive: true })
+  assert.deepEqual(transcriptDirs(root, link).map(d => path.basename(d)).sort(), [linkEnc, realEnc, `${realEnc}--claude-worktrees-brave-x`].sort())
+  assert.deepEqual(transcriptDirs(root, real).map(d => path.basename(d)).sort(), [realEnc, `${realEnc}--claude-worktrees-brave-x`].sort())
+  assert.deepEqual(transcriptDirs(root, path.join(dir, 'hdd', 'plain')).map(d => path.basename(d)), [plain])
+  assert.deepEqual(transcriptDirs(root, path.join(dir, 'hdd', 'gone')), [])
+})
+
 test('the server collects transcripts per project and shows the split without any message text', async t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-time-'))
   const projects = path.join(dir, 'projects')
