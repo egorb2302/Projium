@@ -136,6 +136,11 @@ test('repos without a card include repos linked into the repos folder, but not l
   assert.deepEqual(uncardedRepos(repos, []).map(r => r.name).sort(), ['here', 'moved'])
   const cards = [{ name: 'Moved', text: '---\nstage: development\n---\n', repoHint: null }]
   assert.deepEqual(uncardedRepos(repos, cards).map(r => r.name), ['here'])
+  const byRealPath = [{ name: 'Elsewhere', text: `---\nstage: development\nrepo: ${JSON.stringify(path.join(ssd, 'moved'))}\n---\n`, repoHint: null }]
+  assert.deepEqual(uncardedRepos(repos, byRealPath).map(r => r.name), ['here'])
+  git(path.join(dir, 'hidden-ssd', 'app'))
+  fs.symlinkSync(path.join(dir, 'hidden-ssd', 'app'), path.join(repos, 'app'), 'junction')
+  assert.deepEqual(uncardedRepos(repos, cards, s => /hidden-ssd/i.test(s)).map(r => r.name), ['here'])
 })
 
 const serve = async (t, opts = {}) => {

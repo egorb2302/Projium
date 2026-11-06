@@ -177,6 +177,12 @@ test('a repo reached through a folder link also finds the transcripts of its rea
   assert.deepEqual(transcriptDirs(root, real).map(d => path.basename(d)).sort(), [realEnc, `${realEnc}--claude-worktrees-brave-x`].sort())
   assert.deepEqual(transcriptDirs(root, path.join(dir, 'hdd', 'plain')).map(d => path.basename(d)), [plain])
   assert.deepEqual(transcriptDirs(root, path.join(dir, 'hdd', 'gone')), [])
+  const hidden = path.join(dir, 'hidden-ssd', 'app')
+  const hiddenLink = path.join(dir, 'hdd', 'app')
+  fs.mkdirSync(hidden, { recursive: true })
+  fs.symlinkSync(hidden, hiddenLink, 'junction')
+  for (const d of [encodeDir(hiddenLink), encodeDir(fs.realpathSync.native(hidden))]) fs.mkdirSync(path.join(root, d), { recursive: true })
+  assert.deepEqual(transcriptDirs(root, hiddenLink, ignoreTest(['HIDDEN-SSD'])), [])
 })
 
 test('the server collects transcripts per project and shows the split without any message text', async t => {
