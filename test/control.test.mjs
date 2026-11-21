@@ -57,7 +57,7 @@ const freePort = () =>
     })
   })
 
-test('start:bg starts a detached server once, stop stops only that server', async t => {
+test('start:bg starts a detached server once, stop stops only that server', { timeout: 120000 }, async t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-control-'))
   const projects = path.join(dir, 'projects')
   fs.mkdirSync(path.join(projects, 'alpha'), { recursive: true })
@@ -229,7 +229,7 @@ const jobInstall = async t => {
   return { projects, port, env: { PORT: String(port), TRACKER_CONFIG: file } }
 }
 
-test('on Windows, start:bg leaves a job that allows breakaway, so the server outlives the agent session that started it', { skip: process.platform !== 'win32' }, async t => {
+test('on Windows, start:bg leaves a job that allows breakaway, so the server outlives the agent session that started it', { skip: process.platform !== 'win32', timeout: 120000 }, async t => {
   const { projects, port, env } = await jobInstall(t)
   const r = await startInJob(0x2800, env)
   assert.equal(r.code, 0, r.out)
@@ -238,7 +238,7 @@ test('on Windows, start:bg leaves a job that allows breakaway, so the server out
   assert.equal((await whoIsOn(port, projects)).sameInstance, true, 'the server survives the closed job')
 })
 
-test('on Windows, start:bg stays inside a job that forbids breakaway', { skip: process.platform !== 'win32' }, async t => {
+test('on Windows, start:bg stays inside a job that forbids breakaway', { skip: process.platform !== 'win32', timeout: 120000 }, async t => {
   const { projects, port, env } = await jobInstall(t)
   const r = await startInJob(0x2000, env)
   assert.equal(r.code, 0, r.out)
