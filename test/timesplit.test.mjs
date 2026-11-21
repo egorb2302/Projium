@@ -146,6 +146,17 @@ test('card times follow the configured UTC offset and phases need both ends', ()
   assert.equal(p.toFirstPush.total, 2 * 3600e3)
 })
 
+test('a project with sessions but fewer than two milestone times gets one phase over all its recorded sessions', () => {
+  const H = 3600e3
+  const iv = [[T0, T0 + H, 'w'], [T0 + H, T0 + 1.5 * H, 'q'], [T0 + 10 * H, T0 + 11 * H, 'r']]
+  const p = projectSplit(iv, { first_push_at: '2026-10-20T15:00' }, 180)
+  assert.deepEqual(Object.keys(p), ['sessions'])
+  assert.deepEqual([p.sessions.work, p.sessions.waiting, p.sessions.review, p.sessions.missing, p.sessions.total], [H, 0.5 * H, H, 8.5 * H, 11 * H])
+  assert.equal(p.sessions.hasData, true)
+  assert.deepEqual(projectSplit([], {}, 180), {}, 'no sessions, no phase')
+  assert.deepEqual(Object.keys(projectSplit(iv, { spec_at: '2026-10-20T13:00', first_push_at: '2026-10-20T15:00' }, 180)), ['toFirstPush'], 'milestones win')
+})
+
 test('transcript folders: the repo and its worktrees, never a longer name or an ignored project', t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-tr-'))
   t.after(() => fs.rmSync(root, { recursive: true, force: true }))

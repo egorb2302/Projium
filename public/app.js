@@ -629,7 +629,7 @@ const renderProject = async (name, n) => {
 }
 
 const SPLIT = [['work', 'sp-work'], ['review', 'sp-review'], ['waiting', 'sp-wait'], ['pause', 'sp-pause'], ['missing', 'sp-missing']]
-const PHASES = ['total', 'toFirstPush', 'toMainnet']
+const PHASES = ['total', 'toFirstPush', 'toMainnet', 'sessions']
 
 const splitPanel = projects => {
   const rows = projects.map(p => ({ p, ph: p.timeSplit?.phases ?? {} })).filter(r => PHASES.some(k => r.ph[k]))
@@ -638,7 +638,7 @@ const splitPanel = projects => {
   const h1 = ms => fmtH(ms / 36e5)
   const label = k => t('split')[k]
   return h('section', { class: 'panel' }, h('h2', {}, t('whereTime')),
-    h('div', { class: 'legend' }, SPLIT.map(([k, cls]) => h('span', {}, h('i', { class: cls }), label(k)))),
+    h('dl', { class: 'split-help' }, SPLIT.map(([k, cls]) => h('div', {}, h('dt', {}, h('i', { class: cls }), label(k)), h('dd', {}, t('splitHelp')[k])))),
     withData.length ? h('div', { class: 'table-wrap' }, h('table', {},
       h('thead', {}, h('tr', {}, h('th', {}, t('project')), h('th', {}, t('phase')), h('th', { class: 'split-col' }, ''), SPLIT.map(([k]) => h('th', { class: 'num' }, label(k))), h('th', { class: 'num' }, t('wallClock')))),
       h('tbody', {}, withData.flatMap(({ p, ph }) =>
@@ -792,13 +792,17 @@ const renderTime = async n => {
   const timed = projects.filter(p => p.d.total != null && Number.isFinite(Date.parse(p.fields.spec_at)))
   const untimed = projects.filter(p => !timed.includes(p))
   const trend = timed.map(p => ({ p, at: Date.parse(p.fields.spec_at), total: Math.max(p.d.total, 0.05) })).sort((a, b) => a.at - b.at)
-  const kpi = (v, l) => h('div', { class: 'kpi' }, h('div', { class: 'v' }, fmtH(v)), h('div', { class: 'l' }, l))
+  const kpi = (vals, l) => {
+    const xs = vals.filter(x => x != null)
+    return h('div', { class: 'kpi' }, h('div', { class: 'v' }, fmtH(median(xs))), h('div', { class: 'l' }, l), h('div', { class: 'n muted' }, t('medianOf', xs.length)))
+  }
   render(
+    h('p', { class: 'muted small page-intro' }, t('timeIntro')),
     h('div', { class: 'kpis' },
-      kpi(median(projects.map(p => p.d.design)), t('medianDesign')),
-      kpi(median(projects.map(p => p.d.push)), t('medianPush')),
-      kpi(median(projects.map(p => p.d.mainnet)), t('medianMainnet')),
-      kpi(median(projects.map(p => p.d.total)), t('medianTotal'))),
+      kpi(projects.map(p => p.d.design), t('medianDesign')),
+      kpi(projects.map(p => p.d.push), t('medianPush')),
+      kpi(projects.map(p => p.d.mainnet), t('medianMainnet')),
+      kpi(projects.map(p => p.d.total), t('medianTotal'))),
     trend.length
       ? h('section', { class: 'panel' }, h('h2', {}, t('trendTitle')),
         chartBox('trend-chart', trendChart(trend)),
@@ -818,7 +822,7 @@ const renderTime = async n => {
         h('tbody', {}, projects.sort((a, b) => (b.fields.spec_at || '').localeCompare(a.fields.spec_at || '')).map(p => h('tr', {},
           h('td', {}, projectLink(p)),
           h('td', {}, stageChip(p.fields.stage)),
-          ['spec_at', 'first_push_at', 'mainnet_at'].map(k => h('td', {}, (p.fields[k] || '').replace('T', ' '))),
+          ['spec_at', 'first_push_at', 'mainnet_at'].map(k => h('td', { class: 'when' }, (p.fields[k] || '').replace('T', ' '))),
           [p.d.design, p.d.push, p.d.mainnet, p.d.total].map(v => h('td', { class: 'num' }, v == null ? '' : fmtH(v)))))))),
       h('p', { class: 'muted small' }, t('allNote'))))
 }
