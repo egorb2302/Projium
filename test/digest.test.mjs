@@ -96,13 +96,13 @@ test('the digest shows active projects with overdue tasks, a down site and a sta
   assert.match(text, /Остановлены, не трогаем: paused-app\n/)
   assert.match(text, /- code x{100,}…\n/)
   assert.ok(text.split('\n').every(l => l.length <= 160))
-  assert.match(text, /alpha: fixes\nДальше: wait for the CA\nДедлайн: 2026-10-23, прошёл\nСайт не отвечает: 502\nАудит: аудит устарел: 5 коммит\(ов\) после abc1234/)
+  assert.match(text, /alpha: правки\nДальше: wait for the CA\nДедлайн: 2026-10-23, прошёл\nСайт не отвечает: 502\nАудит: аудит устарел: 5 коммит\(ов\) после abc1234/)
   assert.match(text, /Задачи: 2 открыто\n- late one \(до 2026-10-20, просрочено\) p2\n- later p3/)
   assert.doesNotMatch(text, /finished/)
-  assert.match(text, /Сроки в закрытых проектах:\n- beta: old debt \(до 2026-10-22, просрочено\)/)
+  assert.match(text, /Сроки в готовых проектах:\n- beta: old debt \(до 2026-10-22, просрочено\)/)
   assert.doesNotMatch(text, /no date|gamma|shut-app|never/)
   assert.match(text, /- broken: bad frontmatter/)
-  assert.ok(text.indexOf('Сроки в закрытых') < text.indexOf('В работе'), 'short urgent sections come first')
+  assert.ok(text.indexOf('Сроки в готовых') < text.indexOf('В работе'), 'short urgent sections come first')
 })
 
 test('the digest labels tasks due today, counts the rest, handles dirty-only audits, hides stopped errors and cuts on a line', () => {
@@ -128,7 +128,7 @@ test('the digest labels tasks due today, counts the rest, handles dirty-only aud
   const long = buildDigest(many, at('2026-10-24T07:00:00Z'), RU)
   assert.ok(long.length <= 4000)
   assert.ok(long.endsWith('\n…'))
-  assert.ok(long.split('\n').slice(0, -1).every(l => l === '' || /^(Трекер, сводка на 2026-10-24|В работе: 60|p\d+: fixes|Дальше: x+)$/.test(l)), 'no line is cut in the middle')
+  assert.ok(long.split('\n').slice(0, -1).every(l => l === '' || /^(Трекер, сводка на 2026-10-24|В работе: 60|p\d+: правки|Дальше: x+)$/.test(l)), 'no line is cut in the middle')
 })
 
 const CARD = ['---', 'stage: fixes', 'next_step: "ship"', '---', '', '## Tasks', '', '- [ ] Ship it · due 2026-10-23 · p1 ^t-aaaa', ''].join('\n')
@@ -176,7 +176,7 @@ test('the scheduled digest goes out once a local day after the set time, retries
   const manual = await post(port, '/api/digest/send')
   assert.equal(manual.status, 200)
   assert.equal(sent.length, 1)
-  assert.match(sent[0], /demo: fixes\nДальше: ship/)
+  assert.match(sent[0], /demo: правки\nДальше: ship/)
   assert.match(sent[0], /Ship it \(до 2026-10-23, просрочено\) p1/)
 
   await app.digestTick()
@@ -290,7 +290,7 @@ test('only one digest is sent at a time, and an unreadable project does not stop
     await Promise.all([first, second])
     assert.equal(sent.length, 1)
     assert.match(sent[0], /Карточки не читаются:\n- broken: EISDIR\n/)
-    assert.match(sent[0], /demo: fixes\n/, 'a readiness path that is not a file is skipped')
+    assert.match(sent[0], /demo: правки\n/, 'a readiness path that is not a file is skipped')
   } finally {
     release?.()
     await app.stop()

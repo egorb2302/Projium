@@ -1,4 +1,5 @@
-import { t, getLang, setLang, fmtDate } from './i18n.js'
+import { t, getLang, setLang, loadLang, fmtDate } from './i18n.js'
+import { LANGS } from './locales/index.js'
 import { todayIn, taskState, sortTasks, topTask, signalData, targetState, watchSummary, isActive, inFilter, defaultFilter } from './logic.js'
 import { detailText, signalName, durationText } from './watch-text.js'
 
@@ -115,7 +116,7 @@ const SIG_TEXT = { incident: 'sigIncident', down: 'sigDown', deadline: 'sigDeadl
 const signals = p => signalData(p).map(s => ({ ...s, text: t(SIG_TEXT[s.kind], s.n) }))
 const sigChips = list => (list?.length ? h('div', { class: 'sigs' }, list.map(s => h('span', { class: `pill ${s.tone}${s.kind === 'p1' ? ' mono' : ''}` }, s.text))) : null)
 const urgency = p => p.sig.reduce((a, s) => a + s.w, 0)
-const stat = (label, value) => h('span', {}, h('small', {}, label), h('b', { class: value == null ? 'nil' : '' }, value == null ? t('nil') : String(value)))
+const stat = (label, value, tip = null) => h('span', { title: tip }, h('small', {}, label), h('b', { class: value == null ? 'nil' : '' }, value == null ? t('nil') : String(value)))
 const readyText = r => (r?.total ? `${r.proven ?? '?'}/${r.total}` : null)
 const nil = () => h('span', { class: 'nil' }, t('nil'))
 
@@ -188,8 +189,8 @@ const card = p => {
       sigChips(p.sig),
       h('div', { class: 'stats' },
         stat(t('cardTasks'), p.tasks.filter(x => !x.done).length),
-        stat(t('cardReady'), readyText(p.repoInfo?.readiness)),
-        stat(t('cardPush'), d.push == null ? null : fmtH(d.push)))))
+        stat(t('cardReady'), readyText(p.repoInfo?.readiness), t('cardReadyTip')),
+        stat(t('cardPush'), d.push == null ? null : fmtH(d.push), t('cardPushTip')))))
 }
 
 const LIST_COLS = ['', '', 'c-next', '', 'num', 'num c-m', 'num c-m', 'num c-m', 'num c-m']
@@ -645,7 +646,7 @@ const splitPanel = projects => {
         PHASES.filter(k => ph[k]).map((k, i) => {
           const s = ph[k]
           const first = [projectLink(p), p.timeSplit?.lost ? h('div', { class: 'muted small' }, t('lostShort', p.timeSplit.lost)) : null]
-          const tr = h('tr', { class: i ? 'sub' : '' }, h('td', {}, i ? '' : first), h('td', { class: 'muted' }, t('phases')[k]))
+          const tr = h('tr', { class: i ? 'sub' : '' }, h('td', {}, i ? '' : first), h('td', { class: 'muted', title: k === 'sessions' ? t('sessionsTip') : null }, t('phases')[k]))
           if (!s.hasData) {
             tr.append(h('td', { colspan: SPLIT.length + 2, class: 'muted small' }, t('noTranscriptPhase', fmtH(s.total / 36e5))))
             return tr
@@ -1019,7 +1020,7 @@ const renderSettings = async n => {
     const trans = inp(v.transcriptsDir, { placeholder: t('setTranscriptsPh') })
     const zone = inp(v.utcOffset, { placeholder: e.utcOffset ?? s.computerOffset, pattern: '[+-][0-9]{2}:[0-9]{2}', class: 'mono narrow' })
     const at = inp(v.digestAt || e.digestAt || '10:00', { type: 'time', class: 'narrow' })
-    const lang = h('select', { class: 'narrow' }, ['en', 'ru'].map(l => h('option', { value: l, selected: l === (v.digestLang || e.digestLang || 'en') }, l === 'ru' ? 'Русский' : 'English')))
+    const lang = h('select', { class: 'narrow' }, LANGS.map(([l, name]) => h('option', { value: l, lang: l, selected: l === (v.digestLang || e.digestLang || 'en') }, name)))
     const port = inp(v.port, { type: 'number', min: '1', max: '65535', placeholder: String(e.port ?? 3210), class: 'narrow' })
     const token = inp('', { type: 'password', placeholder: s.telegram.set ? t('tgTokenSet') : '123456:ABC…', autocomplete: 'new-password' })
     const chat = inp('', { placeholder: s.telegram.set ? t('tgChatSet') : '123456789', class: 'mono' })
@@ -1162,7 +1163,7 @@ const sharePanel = (p, info, redraw) => {
   }
   const boxes = info.show.map(k => h('input', { type: 'checkbox', value: k, checked: draft.show.includes(k), onchange: () => keep() }))
   const title = h('input', { value: draft.title, placeholder: p.name, maxlength: 80, 'aria-label': t('shareTitle'), oninput: () => keep() })
-  const lang = h('select', { class: 'narrow', 'aria-label': t('shareLang'), onchange: () => keep() }, ['', 'en', 'ru'].map(l => h('option', { value: l, selected: draft.lang === l }, l ? (l === 'ru' ? 'Русский' : 'English') : t('shareLangDefault'))))
+  const lang = h('select', { class: 'narrow', 'aria-label': t('shareLang'), onchange: () => keep() }, [['', t('shareLangDefault')], ...LANGS].map(([l, name]) => h('option', { value: l, lang: l || null, selected: draft.lang === l }, name)))
   const save = () => post({ op: 'set', project: p.name, show: boxes.filter(b => b.checked).map(b => b.value), title: title.value.trim(), lang: lang.value }, t('shareSaved'))
   const exportNow = async () => {
     exporting = true
@@ -1202,7 +1203,12 @@ const chrome = page => {
     a.classList.toggle('on', a.dataset.nav === page)
     a.firstChild.textContent = `${t(NAV[a.dataset.nav] ?? 'navProjects')} `
   }
-  for (const b of document.querySelectorAll('[data-lang]')) b.setAttribute('aria-pressed', String(b.dataset.lang === getLang()))
+  const pick = document.getElementById('lang')
+  if (pick) {
+    pick.value = getLang()
+    pick.setAttribute('aria-label', t('langLabel'))
+    pick.title = t('langLabel')
+  }
   themeChrome()
 }
 
@@ -1294,12 +1300,17 @@ sb.addEventListener('pointerdown', e => {
   window.scrollTo({ top: (e.clientY / clientHeight) * (scrollHeight - clientHeight), behavior: 'smooth' })
 })
 
-for (const b of document.querySelectorAll('[data-lang]'))
-  b.addEventListener('click', () => {
-    if (b.dataset.lang === getLang()) return
-    setLang(b.dataset.lang)
+const langPick = document.getElementById('lang')
+if (langPick) {
+  langPick.replaceChildren(...LANGS.map(([code, name]) => h('option', { value: code, lang: code }, name)))
+  langPick.addEventListener('change', async () => {
+    const next = langPick.value
+    if (next === getLang()) return
+    if (!(await loadLang(next))) return (langPick.value = getLang())
+    setLang(next)
     route()
   })
+}
 
 for (const b of document.querySelectorAll('[data-theme-set]'))
   b.addEventListener('click', () => {
@@ -1324,4 +1335,5 @@ window.addEventListener('keydown', e => {
     search.focus()
   }
 })
+await loadLang(getLang())
 route()
