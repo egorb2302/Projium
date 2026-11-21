@@ -5,7 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { readFields, setField, readTasks, addTask, replaceTask, formatTask, parseTask, validate, timelineRows, updateLines, markUpdate, lockedFields, toggleLine, writeKeepsYaml } from '../lib/card.mjs'
 import { execFileSync } from 'node:child_process'
-import { auditedCommit, repoOf, ogImage, freshness } from '../lib/repo.mjs'
+import { auditedCommit, repoOf, ogImage, freshness, declaredRepos } from '../lib/repo.mjs'
 import { createStore } from '../lib/store.mjs'
 import { ignoreTest } from '../lib/config.mjs'
 
@@ -310,7 +310,7 @@ test('a repo named in plain prose is found: Repo: <path> without backticks, "cod
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-repo-'))
   const home = path.join(dir, 'home')
   const code = path.join(home, 'code')
-  for (const d of ['nebula', 'acme-shop', 'orbit']) fs.mkdirSync(path.join(code, d, '.git'), { recursive: true })
+  for (const d of ['nebula', 'acme-shop', 'orbit', 'with space']) fs.mkdirSync(path.join(code, d, '.git'), { recursive: true })
   const prev = process.env.HOME
   const prevProfile = process.env.USERPROFILE
   process.env.HOME = home
@@ -322,6 +322,12 @@ test('a repo named in plain prose is found: Repo: <path> without backticks, "cod
     assert.equal(repoOf(code, 'Orbit Swap', 'repo: orbit\n'), path.join(code, 'orbit'))
     assert.equal(repoOf(code, 'Orbit Swap', 'Repo: see the old notes\n'), null, 'a sentence is not a folder name')
     assert.equal(repoOf(code, 'Nebula Wallet', 'Repo: ~/code/missing\n'), null)
+    assert.equal(repoOf(code, 'Spaced', `Repo: ${path.join(code, 'with space')}\n`), path.join(code, 'with space'), 'a path with spaces on its own Repo line')
+    assert.equal(repoOf(code, 'Spaced', `- Repo: "${path.join(code, 'with space')}".\n`), path.join(code, 'with space'), 'quoted, with a full stop')
+    assert.equal(repoOf(code, 'Nebula Wallet', 'Repo: ~/code/nebula (moved here in May)\n'), path.join(code, 'nebula'), 'prose after the path')
+    const mention = 'Repo: ~/code/nebula\nThe old code in ~/code/secret-client was a fork.\n'
+    assert.ok(!declaredRepos(code, 'Nebula Wallet', mention).includes(path.join(code, 'secret-client')), 'a path mentioned in a sentence does not count as a declared repo, so it cannot mark the card ignored')
+    assert.ok(declaredRepos(code, 'Nebula Wallet', mention).includes(path.join(code, 'nebula')))
   } finally {
     if (prev === undefined) delete process.env.HOME
     else process.env.HOME = prev

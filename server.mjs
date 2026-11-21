@@ -101,6 +101,14 @@ export const createApp = ({
     },
   })
   const timeByCard = new Map()
+  let closedSeen = { at: -Infinity, names: new Set() }
+  const closedNow = () => {
+    if (clock() - closedSeen.at < 5e3) return closedSeen.names
+    const names = new Set()
+    for (const c of store.list()) if (c.error ? closedSeen.names.has(c.name) : c.fields.stage === 'closed') names.add(c.name)
+    closedSeen = { at: clock(), names }
+    return names
+  }
   const watcher = createWatch({
     db,
     config: watch,
@@ -109,7 +117,7 @@ export const createApp = ({
     get: watchGet,
     lang: watchLang ?? digestLang,
     link: e => `http://127.0.0.1:${bound}/#/${e.project && store.list().some(c => c.name === e.project) ? `p/${encodeURIComponent(e.project)}` : 'watch'}`,
-    paused: name => store.load(name)?.fields?.stage === 'closed',
+    paused: name => closedNow().has(name),
   })
 
   const shareSettings = () => (configFile ? loadConfig(here, configFile).share ?? { dir: path.join(path.dirname(path.resolve(configFile)), 'share'), every: 0, projects: [] } : shareOpt)
@@ -268,13 +276,15 @@ export const createApp = ({
 
   const watchTick = () => watcher.tick().catch(e => console.error(new Date().toISOString(), 'watch failed', String(e?.message ?? e).slice(0, 200)))
 
-  const healthTick = async () => {
-    for (const card of store.list()) {
-      if (watched(card)) await checkProd(card)
-      else prodCache.delete(card.name)
-    }
-    pruneHealth(db)
-  }
+  let healthRun = null
+  const healthTick = () =>
+    (healthRun ??= (async () => {
+      for (const card of store.list()) {
+        if (watched(card)) await checkProd(card)
+        else prodCache.delete(card.name)
+      }
+      pruneHealth(db)
+    })().finally(() => (healthRun = null)))
 
   const lastDigest = kind => db.prepare('select day, ts from digest_sent where kind = ? order by ts desc limit 1').get(kind) ?? null
   const failuresOn = day => db.prepare("select count(*) n, max(ts) last from digest_sent where kind = 'auto-failed' and day = ?").get(day)

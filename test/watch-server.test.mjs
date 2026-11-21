@@ -106,6 +106,49 @@ test('watch targets are checked whatever the stage, show on the project, alert w
   assert.equal(r.json.targets[0].mutedUntil, null)
 })
 
+test('closing a project from the dashboard pauses its watch targets on the next round and ends their incident without a message', async t => {
+  const sent = []
+  const urls = []
+  let now = Date.parse('2026-11-21T12:00:00Z')
+  const config = watchConfig({ failAfter: 1, recoverAfter: 1, targets: [{ name: 'shop-site', kind: 'site', url: 'https://shop.example', project: 'shop', certDays: 0 }, { name: 'blog-site', kind: 'site', url: 'https://blog.example', project: 'blog', certDays: 0 }] })
+  const watchGet = async url => {
+    urls.push(url)
+    return { status: url === 'https://shop.example' ? 503 : 200, headers: {} }
+  }
+  const { app, call } = await serve(t, { watch: config, watchGet, clock: () => now, sendAlert: async text => void sent.push(text) })
+  await app.watchTick()
+  assert.equal(sent.length, 1, 'the shop incident is announced')
+  let r = await call('GET', '/api/projects')
+  assert.equal(r.json.find(p => p.name === 'shop').watch.open, 1)
+  const shop = r.json.find(p => p.name === 'shop')
+  r = await call('POST', '/api/projects/shop/field', { key: 'stage', value: 'closed', expected: 'done', fileId: shop.fileId })
+  assert.equal(r.status, 200)
+  assert.equal(r.json.fields.stage, 'closed')
+  now += 10e3
+  urls.length = 0
+  await app.watchTick()
+  assert.deepEqual(urls, ['https://blog.example'], 'the closed project is not checked')
+  assert.equal(sent.length, 1, 'no recovery message')
+  r = await call('GET', '/api/watch')
+  assert.deepEqual(r.json.targets.map(x => [x.name, x.paused]), [['shop-site', true], ['blog-site', false]])
+  assert.equal(r.json.incidents[0].end, 'closed')
+  r = await call('GET', '/api/projects')
+  assert.equal(r.json.find(p => p.name === 'shop').watch.open, 0)
+})
+
+test('two health rounds asked for at once share one round, so one slow failure is not counted twice', async t => {
+  let probes = 0
+  let release
+  const gate = new Promise(r => (release = r))
+  const { app } = await serve(t, { probeSite: async () => (probes++, await gate, { code: null, ms: 1, error: 'ETIMEDOUT' }), readConfig: async () => null })
+  const first = app.healthTick()
+  const second = app.healthTick()
+  assert.equal(first, second, 'the second call joins the running round')
+  release()
+  await first
+  assert.equal(probes, 0, 'no card here has a site')
+})
+
 test('without watch targets the API says so and a check is refused', async t => {
   const { call } = await serve(t, {})
   const r = await call('GET', '/api/watch')

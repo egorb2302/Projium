@@ -115,3 +115,10 @@ test('the digest, alerts and client pages render in every language without Engli
     assert.ok(html.includes(words(code, 'share').stage.fixes), `${code}: client page stage`)
   }
 })
+
+test('the config schema lists exactly the supported languages wherever it takes one', () => {
+  const schema = fs.readFileSync(path.join(path.dirname(dir), '..', 'tracker.config.schema.json'), 'utf8')
+  const lists = [...schema.matchAll(/"lang": \{ "enum": (\[[^\]]*\])/g)].map(m => JSON.parse(m[1]))
+  assert.equal(lists.length, 3)
+  for (const l of lists) assert.deepEqual(l, CODES)
+})

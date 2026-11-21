@@ -100,6 +100,13 @@ test('a failed site check is retried once before it is recorded, and the summary
   const r = await checkSite(`${base}/`, 5000, dns.lookup, 50)
   assert.equal(r.code, 200, 'the retry answered')
   assert.equal(hits, 2)
+  let five = 0
+  const flaky = await serve(t, { '/': res => (++five === 1 ? (res.writeHead(502), res.end()) : (res.writeHead(200), res.end('ok'))) })
+  assert.equal((await checkSite(`${flaky}/`, 5000, dns.lookup, 50)).code, 200, 'a 5xx is retried too')
+  let four = 0
+  const missing = await serve(t, { '/': res => (++four, res.writeHead(404), res.end()) })
+  assert.equal((await checkSite(`${missing}/`, 5000, dns.lookup, 50)).code, 404)
+  assert.equal(four, 1, 'a 4xx is an answer, not retried')
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-health-'))
   const db = openDb(path.join(dir, 'h.db'))
   t.after(() => {

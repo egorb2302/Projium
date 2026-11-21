@@ -146,6 +146,45 @@ test('writing a mapped field changes exactly that line, in the owner key and wor
   assert.match(fs.readFileSync(file, 'utf8'), /^status: shipped$/m, 'a conflicting write changes nothing')
 })
 
+test('a config that maps the word "closed" to another stage keeps reading it that way, refuses to write closed with a clear reason, and the doctor says how to fix it', async t => {
+  const dir = temp(t)
+  const file = path.join(dir, 'Acme Shop.md')
+  put(file, ACME.replace('status: in progress', 'status: closed'))
+  const old = { ...OWNER, stages: { ...OWNER.stages, closed: 'done' } }
+  const store = createStore(dir, old)
+  assert.equal(store.load('Acme Shop').fields.stage, 'done', 'the owner mapping written before the closed stage wins')
+  store.saveField('Acme Shop', 'stage', 'development', 'done', fid(store, 'Acme Shop'))
+  const before = fs.readFileSync(file, 'utf8')
+  assert.throws(() => store.saveField('Acme Shop', 'stage', 'closed', 'development', fid(store, 'Acme Shop')), /cannot set closed: cards\.stages maps the word "closed" to done; map another word to closed/)
+  assert.equal(fs.readFileSync(file, 'utf8'), before, 'nothing is written')
+  const fixed = createStore(dir, { ...old, stages: { ...old.stages, archived: 'closed' } })
+  fixed.saveField('Acme Shop', 'stage', 'closed', 'development', fid(fixed, 'Acme Shop'))
+  assert.match(fs.readFileSync(file, 'utf8'), /^status: archived$/m)
+
+  const cfg = path.join(dir, 'tracker.config.json')
+  fs.writeFileSync(cfg, JSON.stringify({ projectsDir: dir, reposDir: dir, cards: old }))
+  const r = await diagnose(dir, { file: cfg, probe: async () => ({ running: false, projium: false, sameInstance: false }) })
+  assert.match(r.hints.join('\n'), /cards\.stages maps "closed" to done, so the closed stage .* cannot be set from the dashboard; add a word for it, like "archived": "closed"/)
+  fs.writeFileSync(cfg, JSON.stringify({ projectsDir: dir, reposDir: dir, cards: { ...old, stages: { ...old.stages, archived: 'closed' } } }))
+  const ok = await diagnose(dir, { file: cfg, probe: async () => ({ running: false, projium: false, sameInstance: false }) })
+  assert.doesNotMatch(ok.hints.join('\n'), /closed stage/)
+})
+
+test('a stage name in another case reads as that stage (setup leaves such words out of cards.stages)', t => {
+  const dir = temp(t)
+  put(path.join(dir, 'A.md'), ACME.replace('status: in progress', 'status: Closed'))
+  put(path.join(dir, 'B.md'), ACME.replace('status: in progress', 'status: Done'))
+  const store = createStore(dir, { ...OWNER, stages: {} })
+  assert.equal(store.load('A').fields.stage, 'closed')
+  assert.equal(store.load('B').fields.stage, 'done')
+  store.saveField('A', 'stage', 'development', 'closed', fid(store, 'A'))
+  assert.match(fs.readFileSync(path.join(dir, 'A.md'), 'utf8'), /^status: development$/m)
+  store.saveField('A', 'stage', 'closed', 'development', fid(store, 'A'))
+  assert.match(fs.readFileSync(path.join(dir, 'A.md'), 'utf8'), /^status: closed$/m)
+  store.saveField('B', 'stage', 'done', 'done', fid(store, 'B'))
+  assert.match(fs.readFileSync(path.join(dir, 'B.md'), 'utf8'), /^status: Done$/m, 'the owner spelling is kept when the stage does not change')
+})
+
 test('tasks go to the owner heading, and an unmapped field can still be added', t => {
   const dir = temp(t)
   const file = path.join(dir, 'Acme Shop.md')
@@ -261,6 +300,7 @@ test('the cards config is checked before anything is read', t => {
   bad({ fields: { spec_at: 'stage' } }, /itself a Projium field/)
   bad({ fields: { spec_at: 'started', mainnet_at: 'started' } }, /maps two fields to started/)
   bad({ stages: { live: 'launched' } }, /cards\.stages\["live"\] must be one of/)
+  bad({ stages: { '#done': 'review' } }, /maps the Projium stage name done to review/)
   bad({ sections: { tasks: '## Todo' } }, /cards\.sections\.tasks/)
   assert.deepEqual(cardsConfig(undefined).layout, 'folder')
   assert.deepEqual(cardsConfig({ fields: { stage: 'stage' } }).fields, { stage: 'stage' })
