@@ -49,7 +49,7 @@ test('the doctor says why each folder is skipped, flags config typos and never p
   const projects = path.join(dir, 'vault', 'Projects')
   const repos = path.join(dir, 'code')
   fs.mkdirSync(path.join(repos, 'alpha', '.git'), { recursive: true })
-  put(path.join(projects, 'alpha', 'alpha.md'), '---\nstage: fixes\napi_key: "sk-NEVER-SHOWN"\nspec_at: 2026-10-26T17:49\nfirst_push_at: 2026-10-26T20:11\nmainnet_at: 2026-10-26T18:49\n---\n\n## Tasks\n\n- [ ] ok task · p1 ^t-aaaa\n- [ ] loose task\n')
+  put(path.join(projects, 'alpha', 'alpha.md'), '---\nstage: fixes\napi_key: "sk-NEVER-SHOWN"\nspec_at: 2026-10-26T17:49\ndesign_pick_at:\nfirst_push_at: 2026-10-26T20:11\nmainnet_at: 2026-10-26T18:49\n---\n\n## Tasks\n\n- [ ] ok task · p1 ^t-aaaa\n- [ ] loose task\n')
   put(path.join(projects, 'beta', 'notes.md'), '---\nstage: review\n---\n')
   put(path.join(projects, 'gamma', 'gamma.md'), '# gamma\n\nno frontmatter\n')
   put(path.join(projects, 'delta', 'delta.md'), '---\nstatus: active\n---\n')
