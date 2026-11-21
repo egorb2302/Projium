@@ -306,6 +306,31 @@ test('ignored projects are never mapped to a repo, whatever the card says', () =
   fs.rmSync(dir, { recursive: true, force: true })
 })
 
+test('a repo named in plain prose is found: Repo: <path> without backticks, "code in <path>", and Repo: <folder name> inside reposDir', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-repo-'))
+  const home = path.join(dir, 'home')
+  const code = path.join(home, 'code')
+  for (const d of ['nebula', 'acme-shop', 'orbit']) fs.mkdirSync(path.join(code, d, '.git'), { recursive: true })
+  const prev = process.env.HOME
+  const prevProfile = process.env.USERPROFILE
+  process.env.HOME = home
+  process.env.USERPROFILE = home
+  try {
+    assert.equal(repoOf(code, 'Nebula Wallet', '# Nebula\n\nRepo: ~/code/nebula\n'), path.join(code, 'nebula'))
+    assert.equal(repoOf(code, 'Nebula Wallet', `- **Repo:** ${path.join(code, 'nebula')}.\n`), path.join(code, 'nebula'))
+    assert.equal(repoOf(code, 'Acme Shop', 'Online store for Acme. Code in ~/code/acme-shop.\n'), path.join(code, 'acme-shop'))
+    assert.equal(repoOf(code, 'Orbit Swap', 'repo: orbit\n'), path.join(code, 'orbit'))
+    assert.equal(repoOf(code, 'Orbit Swap', 'Repo: see the old notes\n'), null, 'a sentence is not a folder name')
+    assert.equal(repoOf(code, 'Nebula Wallet', 'Repo: ~/code/missing\n'), null)
+  } finally {
+    if (prev === undefined) delete process.env.HOME
+    else process.env.HOME = prev
+    if (prevProfile === undefined) delete process.env.USERPROFILE
+    else process.env.USERPROFILE = prevProfile
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('a repo comes from the repo field first, then a Repo line with an absolute path, then the folder name', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-repo-'))
   for (const d of ['demo', 'other', 'third']) fs.mkdirSync(path.join(dir, d, '.git'), { recursive: true })

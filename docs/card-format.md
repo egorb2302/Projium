@@ -41,13 +41,14 @@ Keep it flat: one `key: value` per line. Multi-line values, block scalars and du
 
 | Field | Value | What it drives |
 |---|---|---|
-| `stage` | `development`, `review`, `fixes`, `done` | Filters, the digest, health checks (stopped at `done`). A card with only `project:` shows as `development`. |
+| `stage` | `development`, `review`, `fixes`, `done`, `closed` | Filters, the digest, health checks (stopped at `done` and `closed`). `closed` is for a project that was shut down or dropped: it leaves In progress, raises no signals, and its Launch Watch targets pause until the stage changes. A card with only `project:` shows as `development`. |
 | `status` | free text | Shown under the name. Not editable from the dashboard. |
 | `next_step` | one line | Card and digest. |
 | `site` | `"https://domain"` | Uptime check every 10 minutes while the stage is not `done`, plus the prod flag read (below). Public https domains only. |
 | `preview` | `"preview.jpg"`, `"alpha/shot.png"` or an Obsidian link `"[[Projects/alpha/preview.png]]"` | Cover image. A bare file name is looked up in the card's folder. png, jpg or webp, inside `projectsDir` only. Without it, the repo's `public/og.*` image is used. |
 | `repo` | `"alpha"`, `"~/code/alpha"`, an absolute path, or `none` | The git repo of the project, relative to `reposDir`. Without it, the tracker uses `cards.repos`, then a `Repo: \`<path>\`` line in the card body (a backticked absolute path, `C:\...`, `C:/...`, `/...` or `~/...`), then a folder in `reposDir` named like the card, ignoring case, spaces and punctuation. `none` marks a project without code: no repo lookup, no warning. |
 | `spec_at`, `design_pick_at`, `first_push_at`, `mainnet_at` | `YYYY-MM-DDTHH:MM` | Milestone durations and the time split. Read in the `utcOffset` time zone. |
+| `deadline` | `YYYY-MM-DD` | The project's due date. While the project is in progress, a passed deadline and one in the next two days show in Needs attention and the digest. |
 | `handed_over_at`, `accepted_at` | `YYYY-MM-DD` | Shown on the card. |
 | `accepted_by` | text | Shown on the card. |
 

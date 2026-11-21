@@ -62,9 +62,12 @@ export const signalData = (p, now) => {
   const behind = Math.max(f.sinceLocal ?? 0, f.sinceOrigin ?? 0)
   const stale = live && f.state === 'changed-after'
   const incidents = p.watch?.open ?? 0
+  const dl = live && /^\d{4}-\d{2}-\d{2}$/.test(p.fields.deadline ?? '') ? dayDiff(today, p.fields.deadline) : null
   return [
     incidents && { kind: 'incident', tone: 'bad', w: 100 * incidents, n: incidents },
     down && { kind: 'down', tone: 'bad', w: 100, n: 1 },
+    dl != null && dl < 0 && { kind: 'deadline', tone: 'bad', w: 60, n: dl },
+    dl != null && dl >= 0 && dl <= 2 && { kind: 'deadline', tone: 'warn', w: 9, n: dl },
     over && { kind: 'over', tone: 'bad', w: 30 * over, n: over },
     p1 && { kind: 'p1', tone: 'warn', w: 10 * p1, n: p1 },
     soon && { kind: 'soon', tone: 'warn', w: 8 * soon, n: soon },

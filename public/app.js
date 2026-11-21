@@ -9,6 +9,7 @@ const STAGES = ['development', 'review', 'fixes', 'done', 'closed']
 const FIELDS = [
   ['stage', 'stage'],
   ['next_step', 'text'],
+  ['deadline', 'date'],
   ['handed_over_at', 'date'],
   ['accepted_at', 'date'],
   ['accepted_by', 'text'],
@@ -110,7 +111,7 @@ const healthDot = p => {
 const projectLink = p => h('a', { href: `#/p/${encodeURIComponent(p.name)}` }, p.name)
 
 const dayLabel = (d, year) => new Date(`${d}T00:00:00Z`).toLocaleDateString(t('locale'), { day: 'numeric', month: 'short', year: year ? 'numeric' : undefined, timeZone: 'UTC' })
-const SIG_TEXT = { incident: 'sigIncident', down: 'sigDown', over: 'sigOverdue', p1: 'sigP1', soon: 'sigSoon', stale: 'sigStale' }
+const SIG_TEXT = { incident: 'sigIncident', down: 'sigDown', deadline: 'sigDeadline', over: 'sigOverdue', p1: 'sigP1', soon: 'sigSoon', stale: 'sigStale' }
 const signals = p => signalData(p).map(s => ({ ...s, text: t(SIG_TEXT[s.kind], s.n) }))
 const sigChips = list => (list?.length ? h('div', { class: 'sigs' }, list.map(s => h('span', { class: `pill ${s.tone}${s.kind === 'p1' ? ' mono' : ''}` }, s.text))) : null)
 const urgency = p => p.sig.reduce((a, s) => a + s.w, 0)

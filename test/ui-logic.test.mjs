@@ -62,6 +62,16 @@ test('one failed check is not a down site: down needs the server flag set after 
   assert.deepEqual(twice.map(s => s.kind), ['down'])
 })
 
+test('a project deadline shows while the project is in progress: passed is bad, the next two days are a warning', () => {
+  const at = deadline => signalData(project({ fields: { stage: 'review', deadline } }), NOW).map(s => [s.kind, s.tone, s.n])
+  assert.deepEqual(at('2026-10-25'), [['deadline', 'bad', -7]])
+  assert.deepEqual(at('2026-11-01'), [['deadline', 'warn', 0]])
+  assert.deepEqual(at('2026-11-03'), [['deadline', 'warn', 2]])
+  assert.deepEqual(at('2026-11-04'), [])
+  assert.deepEqual(at('soon'), [])
+  assert.deepEqual(signalData(project({ fields: { stage: 'done', deadline: '2026-10-25' } }), NOW), [])
+})
+
 test('closed projects raise no signals at all and sit under their own filter, outside In progress', () => {
   const tasks = [task('over', { due: '2026-10-20' }), task('p1', { p: 'p1' })]
   const closed = project({ tasks, health: { last: { code: 503 }, down: true }, watch: { open: 3, targets: 4 }, fields: { stage: 'closed', site: 'https://a.example' } })

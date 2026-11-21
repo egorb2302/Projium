@@ -22,7 +22,7 @@ A card entry:
 | `hash` | Short hash of the card file as read. |
 | `fileId` | Short id of the note file. Send it back as `fileId` with every write: when the project name now resolves to another note (a new note with the same name appeared), the write is refused with `409` instead of going to the wrong file. |
 | `preview` | URL path of the cover image (`/vault/...` or `/og/...`), or `null`. |
-| `fields` | `status`, `stage`, `next_step`, `site`, `accepted_by`, `handed_over_at`, `accepted_at`, `spec_at`, `design_pick_at`, `first_push_at`, `mainnet_at` when present. Other frontmatter keys are never returned. |
+| `fields` | `status`, `stage`, `next_step`, `deadline`, `site`, `accepted_by`, `handed_over_at`, `accepted_at`, `spec_at`, `design_pick_at`, `first_push_at`, `mainnet_at` when present. Other frontmatter keys are never returned. |
 | `fieldKeys` | Fields mapped to the owner's own frontmatter keys (`cards.fields`), like `{ "stage": "status" }`, whether or not this note has the key yet. Writes go to those keys; writing a field the note does not have adds the owner's key. |
 | `locked` | Field names the dashboard will not write (not a plain one-line value in the card). |
 | `tasks` | `{ id, at, done, text, due, p }`. `at` is the task's position among the checkbox lines of the section; `id` is its trailing block id (`^t-a1b2` gives `t-a1b2`), or `""` when the line has none. |
@@ -52,7 +52,7 @@ Every write changes one thing and checks that it did not change since you read i
 
 Send `fileId` with every write, tasks too. With `cards.layout "flat"` it is required: a write without it gets `400`. With the folder layout it is optional but still recommended.
 
-`key` is one of the editable fields (`stage`, `next_step`, `site`, `accepted_by`, `handed_over_at`, `accepted_at`, `spec_at`, `design_pick_at`, `first_push_at`, `mainnet_at`). `value` is a one-line string; `""` clears it. Dates are `YYYY-MM-DD`, times `YYYY-MM-DDTHH:MM`, `site` is `https://domain`. Returns the updated card. If the field changed meanwhile: `409` with `{ "error", "current" }`; resend with `expected` set to `current` if you still want to write.
+`key` is one of the editable fields (`stage`, `next_step`, `deadline`, `site`, `accepted_by`, `handed_over_at`, `accepted_at`, `spec_at`, `design_pick_at`, `first_push_at`, `mainnet_at`). `value` is a one-line string; `""` clears it. Dates are `YYYY-MM-DD`, times `YYYY-MM-DDTHH:MM`, `site` is `https://domain`. Returns the updated card. If the field changed meanwhile: `409` with `{ "error", "current" }`; resend with `expected` set to `current` if you still want to write.
 
 **Add a task:** `POST /api/projects/<name>/task`
 

@@ -65,12 +65,13 @@ It prints every frontmatter key with how many notes use it, its value kinds (tex
 
 | Owner's key usually called | Projium field |
 |---|---|
-| `status`, `state`, `phase` | `stage`, plus `cards.stages` for each value from the survey: active work → `development`; waiting for review, a client or feedback, on hold for a while → `review`; fixing after review → `fixes`; finished and no longer worked on, closed, paused for good → `done`. A live product that still gets work is `development` or `fixes`, not `done`: `done` also stops its uptime checks. The owner's word stays visible as `status`. The doctor names every word you have not mapped. |
+| `status`, `state`, `phase` | `stage`, plus `cards.stages` for each value from the survey: active work → `development`; waiting for review, a client or feedback, on hold for a while → `review`; fixing after review → `fixes`; finished, delivered and no longer worked on → `done`; shut down, cancelled, archived, paused for good → `closed` (its Launch Watch targets pause too). A live product that still gets work is `development` or `fixes`, not `done`: `done` and `closed` also stop its uptime checks. The owner's word stays visible as `status`. The doctor names every word you have not mapped. |
 | `next`, `next action` | `next_step` |
 | `started`, `kickoff`, `brief`, `created` (when it marks the start of the work) | `spec_at` |
 | `design approved` | `design_pick_at` |
 | `first deploy`, `first_push`, `live since` | `first_push_at` |
 | `launched`, `released`, `mainnet` | `mainnet_at` (the production launch; the name comes from crypto projects, it fits any launch) |
+| `deadline`, `due`, `due date` | `deadline` |
 | `delivered`, `handed over` | `handed_over_at` |
 | `accepted` (a date) and the person who accepted the work | `accepted_at`, `accepted_by`. A `client` key usually names the customer, not who accepted: do not map it. |
 | `url`, `site`, `prod` | `site`: **ask first**, it turns on uptime checks |

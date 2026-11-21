@@ -70,7 +70,7 @@ test('the digest shows active projects with overdue tasks, a down site and a sta
   const text = buildDigest(
     [
       card('alpha', 'fixes', {
-        fields: { next_step: 'wait for the CA' },
+        fields: { next_step: 'wait for the CA', deadline: '2026-10-23' },
         tasks: [
           { text: 'later', done: false, due: '', p: 'p3' },
           { text: 'late one', done: false, due: '2026-10-20', p: 'p2' },
@@ -96,7 +96,7 @@ test('the digest shows active projects with overdue tasks, a down site and a sta
   assert.match(text, /Остановлены, не трогаем: paused-app\n/)
   assert.match(text, /- code x{100,}…\n/)
   assert.ok(text.split('\n').every(l => l.length <= 160))
-  assert.match(text, /alpha: fixes\nДальше: wait for the CA\nСайт не отвечает: 502\nАудит: аудит устарел: 5 коммит\(ов\) после abc1234/)
+  assert.match(text, /alpha: fixes\nДальше: wait for the CA\nДедлайн: 2026-10-23, прошёл\nСайт не отвечает: 502\nАудит: аудит устарел: 5 коммит\(ов\) после abc1234/)
   assert.match(text, /Задачи: 2 открыто\n- late one \(до 2026-10-20, просрочено\) p2\n- later p3/)
   assert.doesNotMatch(text, /finished/)
   assert.match(text, /Сроки в закрытых проектах:\n- beta: old debt \(до 2026-10-22, просрочено\)/)
