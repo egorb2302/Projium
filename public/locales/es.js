@@ -136,7 +136,7 @@ export default {
     },
     timeIntro: 'Cuánto tardan los proyectos, a partir de las horas de hitos de tus tarjetas (spec recibida, diseño elegido, primer push, lanzamiento) y de las transcripciones de sesiones de Claude Code. Las duraciones son tiempo real transcurrido salvo que una sección diga otra cosa',
     medianOf: n => (n === 1 ? 'de 1 proyecto' : `de ${n} proyectos`),
-    medianNone: 'necesita dos hitos con fecha en una tarjeta',
+    medianNone: 'ninguna tarjeta tiene aún estos dos hitos',
     whereTime: 'En qué se fue el tiempo',
     project: 'Proyecto',
     phase: 'Fase',

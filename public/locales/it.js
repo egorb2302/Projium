@@ -136,7 +136,7 @@ export default {
     },
     timeIntro: 'Quanto durano i progetti, in base agli orari delle milestone nelle tue schede (spec ricevuta, design scelto, primo push, lancio) e alle trascrizioni delle sessioni di Claude Code. Le durate sono in tempo reale, salvo diversa indicazione di una sezione',
     medianOf: n => (n === 1 ? 'da 1 progetto' : `da ${n} progetti`),
-    medianNone: 'servono due milestone con data in una scheda',
+    medianNone: 'nessuna scheda ha ancora entrambe queste milestone',
     whereTime: 'Dove è andato il tempo',
     project: 'Progetto',
     phase: 'Fase',

@@ -136,7 +136,7 @@ export default {
     },
     timeIntro: 'Wie lange Projekte dauern, berechnet aus den Meilensteinzeiten in deinen Karten (Spec erhalten, Design gewählt, erster Push, Launch) und aus den Transkripten der Claude-Code-Sitzungen. Dauern sind Wanduhrzeit, sofern ein Abschnitt nichts anderes sagt',
     medianOf: n => (n === 1 ? 'aus 1 Projekt' : `aus ${n} Projekten`),
-    medianNone: 'braucht zwei Meilensteinzeiten in einer Karte',
+    medianNone: 'noch keine Karte hat beide dieser Meilensteinzeiten',
     whereTime: 'Wohin die Zeit ging',
     project: 'Projekt',
     phase: 'Phase',

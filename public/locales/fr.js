@@ -138,7 +138,7 @@ export default {
     },
     timeIntro: 'Combien de temps prennent les projets, d’après les heures de jalons de vos cartes (spec reçue, design choisi, premier push, lancement) et les transcriptions des sessions Claude Code. Les durées sont en temps réel, sauf indication contraire d’une section',
     medianOf: n => (n === 1 ? 'sur 1 projet' : `sur ${n} projets`),
-    medianNone: 'nécessite deux jalons datés dans une fiche',
+    medianNone: 'aucune fiche n’a encore ces deux jalons',
     whereTime: 'Où est passé le temps',
     project: 'Projet',
     phase: 'Phase',

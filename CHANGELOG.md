@@ -4,8 +4,8 @@ Versions follow [semantic versioning](https://semver.org); each one is a git tag
 
 ## 1.0.2 (2026-11-21)
 
-- A repo is also found from a link in a card, `Repo: https://github.com/acme/orbit-app` (the last part names the folder in `reposDir`), and from a `Code: <path>` label in the middle of a line. A bare URL in a sentence still does not count.
-- The Time page says why a median is empty: it needs two milestone times in one card.
+- A repo is also found from a link in a card, `Repo: https://github.com/acme/orbit-app` (the second path part names the folder in `reposDir`; a full stop or comma after the link is fine), and from a `Code: <path>` label in the middle of a line. The label has to start the line or a sentence, so "upstream code: <link>" or a bare URL in a sentence does not count. `doctor` checks ignore words against the same repo the dashboard picks.
+- The Time page says why a median is empty: no card has both of its milestone times yet.
 - `npm test` passes when `PORT` or `TRACKER_CONFIG` is set in your shell (the test run clears them), as AGENTS.md promises.
 - CI: tests run on Windows, Linux and macOS on every push; failed tests show as annotations on the run. A Windows test of the background start no longer fails when the temp folder is still locked during cleanup.
 

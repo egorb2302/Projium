@@ -219,6 +219,7 @@ const jobInstall = async t => {
     if (keepPort === undefined) delete process.env.PORT
     else process.env.PORT = keepPort
     for (let i = 0; i < 40 && (await whoIsOn(port, projects, 1000)).running; i++) await new Promise(res => setTimeout(res, 250))
+    assert.equal((await whoIsOn(port, projects, 1000)).running, false, 'the server stopped')
     try {
       fs.rmSync(dir, { recursive: true, force: true, maxRetries: 50, retryDelay: 200 })
     } catch (e) {

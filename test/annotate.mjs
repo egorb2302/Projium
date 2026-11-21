@@ -1,5 +1,9 @@
 import fs from 'node:fs'
 
+if (!fs.existsSync(process.argv[2] ?? '')) {
+  console.log('::error title=tests failed::no TAP output (the run stopped before the tests)')
+  process.exit(0)
+}
 const lines = fs.readFileSync(process.argv[2], 'utf8').split(/\r?\n/)
 const clean = s => s.replace(/[\r\n]+/g, ' ').replace(/%/g, '%25').slice(0, 300)
 const field = (block, key) => {
