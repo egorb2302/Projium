@@ -136,6 +136,7 @@ export default {
     },
     timeIntro: 'プロジェクトにかかる時間を、カードのマイルストーン時刻（spec 受領、デザイン決定、初回 push、ローンチ）と Claude Code のセッショントランスクリプトから集計します。特に記載がない限り、所要時間は実時間です',
     medianOf: n => `${n} プロジェクトから算出`,
+    medianNone: '1 枚のカードに 2 つのマイルストーン時刻が必要です',
     whereTime: '時間の内訳',
     project: 'プロジェクト',
     phase: 'フェーズ',

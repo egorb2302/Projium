@@ -138,6 +138,7 @@ export default {
     },
     timeIntro: 'Ile trwają projekty: na podstawie czasów kamieni milowych w twoich kartach (otrzymanie specyfikacji, wybór designu, pierwszy push, start) oraz transkryptów sesji Claude Code. Czasy trwania liczone są zegarowo, chyba że sekcja mówi inaczej',
     medianOf: n => (n === 1 ? 'z 1 projektu' : `z ${n} ${p(n, { one: 'projektu', few: 'projektów', many: 'projektów', other: 'projektów' })}`),
+    medianNone: 'wymaga dwóch kamieni milowych w jednej karcie',
     whereTime: 'Na co poszedł czas',
     project: 'Projekt',
     phase: 'Faza',

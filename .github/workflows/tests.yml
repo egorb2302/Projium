@@ -27,4 +27,9 @@ jobs:
           git config --global user.name "ci"
           git config --global user.email "ci@example.com"
           git config --global init.defaultBranch main
-      - run: npm test
+      - name: Tests
+        run: node --no-warnings --import ./test/hermetic.mjs --test --test-timeout=30000 --test-reporter=spec --test-reporter-destination=stdout --test-reporter=tap --test-reporter-destination=test-results.tap "test/*.test.mjs"
+      - name: Failed tests as annotations
+        if: failure()
+        shell: bash
+        run: node test/annotate.mjs test-results.tap

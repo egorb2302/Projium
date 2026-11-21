@@ -218,7 +218,12 @@ const jobInstall = async t => {
     await stopServer(repoRoot, { file })
     if (keepPort === undefined) delete process.env.PORT
     else process.env.PORT = keepPort
-    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 })
+    for (let i = 0; i < 40 && (await whoIsOn(port, projects, 1000)).running; i++) await new Promise(res => setTimeout(res, 250))
+    try {
+      fs.rmSync(dir, { recursive: true, force: true, maxRetries: 50, retryDelay: 200 })
+    } catch (e) {
+      t.diagnostic(`temp dir left behind: ${e.code}`)
+    }
   })
   return { projects, port, env: { PORT: String(port), TRACKER_CONFIG: file } }
 }

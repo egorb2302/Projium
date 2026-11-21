@@ -136,6 +136,7 @@ export default {
     },
     timeIntro: 'How long projects take, from the milestone times in your cards (spec received, design picked, first push, launch) and from Claude Code session transcripts. Durations are wall clock unless a section says otherwise',
     medianOf: n => (n === 1 ? 'from 1 project' : `from ${n} projects`),
+    medianNone: 'needs two milestone times in a card',
     whereTime: 'Where the time went',
     project: 'Project',
     phase: 'Phase',

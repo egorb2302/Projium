@@ -136,6 +136,7 @@ export default {
     },
     timeIntro: 'Quanto tempo os projetos levam, a partir dos horários de marcos nos seus cartões (spec recebida, design escolhido, primeiro push, lançamento) e das transcrições de sessões do Claude Code. As durações são tempo real decorrido, salvo indicação em contrário numa seção',
     medianOf: n => (n === 1 ? 'de 1 projeto' : `de ${n} projetos`),
+    medianNone: 'precisa de dois marcos com data em um cartão',
     whereTime: 'Para onde foi o tempo',
     project: 'Projeto',
     phase: 'Fase',

@@ -795,7 +795,7 @@ const renderTime = async n => {
   const trend = timed.map(p => ({ p, at: Date.parse(p.fields.spec_at), total: Math.max(p.d.total, 0.05) })).sort((a, b) => a.at - b.at)
   const kpi = (vals, l) => {
     const xs = vals.filter(x => x != null)
-    return h('div', { class: 'kpi' }, h('div', { class: 'v' }, fmtH(median(xs))), h('div', { class: 'l' }, l), h('div', { class: 'n muted' }, t('medianOf', xs.length)))
+    return h('div', { class: 'kpi' }, h('div', { class: 'v' }, fmtH(median(xs))), h('div', { class: 'l' }, l), h('div', { class: 'n muted' }, xs.length ? t('medianOf', xs.length) : t('medianNone')))
   }
   render(
     h('p', { class: 'muted small page-intro' }, t('timeIntro')),

@@ -136,6 +136,7 @@ export default {
     },
     timeIntro: '카드의 마일스톤 시간(spec 수신, 디자인 확정, 첫 push, 출시)과 Claude Code 세션 트랜스크립트로 프로젝트에 걸린 시간을 보여 줍니다. 섹션에 따로 적혀 있지 않으면 소요 시간은 실제 경과 시간입니다',
     medianOf: n => `프로젝트 ${n}개 기준`,
+    medianNone: '한 카드에 마일스톤 시각이 두 개 필요합니다',
     whereTime: '시간이 쓰인 곳',
     project: '프로젝트',
     phase: '단계',

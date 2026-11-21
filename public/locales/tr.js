@@ -136,6 +136,7 @@ export default {
     },
     timeIntro: 'Projelerin ne kadar sürdüğü: kartlarınızdaki kilometre taşı zamanlarından (spec alındı, tasarım seçildi, ilk push, yayın) ve Claude Code oturum transkriptlerinden hesaplanır. Bir bölüm aksini söylemedikçe süreler duvar saati süresidir',
     medianOf: n => (n === 1 ? '1 projeden' : `${n} projeden`),
+    medianNone: 'bir kartta iki kilometre taşı zamanı gerekir',
     whereTime: 'Zaman nereye gitti',
     project: 'Proje',
     phase: 'Aşama',

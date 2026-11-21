@@ -2,6 +2,13 @@
 
 Versions follow [semantic versioning](https://semver.org); each one is a git tag (`v0.4.0`). After pulling a new version, restart the server (`npm run --silent stop`, then `npm run --silent start:bg`, or log in again with autostart).
 
+## 1.0.2 (2026-11-21)
+
+- A repo is also found from a link in a card, `Repo: https://github.com/acme/orbit-app` (the last part names the folder in `reposDir`), and from a `Code: <path>` label in the middle of a line. A bare URL in a sentence still does not count.
+- The Time page says why a median is empty: it needs two milestone times in one card.
+- `npm test` passes when `PORT` or `TRACKER_CONFIG` is set in your shell (the test run clears them), as AGENTS.md promises.
+- CI: tests run on Windows, Linux and macOS on every push; failed tests show as annotations on the run. A Windows test of the background start no longer fails when the temp folder is still locked during cleanup.
+
 ## 1.0.1 (2026-11-21)
 
 - Settings: the time zone field's input pattern was not a valid expression for browsers (they compile `pattern` with the `v` flag, where a bare `-` in a character class is an error), so Chromium logged an error on the page and did not check the field. It now accepts what the config accepts, `+HH:MM`, `-HH:MM` or `local`, and a test compiles every input pattern of the interface the way browsers do.

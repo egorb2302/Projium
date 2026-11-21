@@ -136,6 +136,7 @@ export default {
     },
     timeIntro: '项目耗时多久，依据是卡片中的里程碑时间（收到 spec、确定设计、首次 push、上线）以及 Claude Code 的会话记录。除非某一部分另有说明，时长均为实际经过的时间',
     medianOf: n => `基于 ${n} 个项目`,
+    medianNone: '需要同一张卡片中有两个里程碑时间',
     whereTime: '时间花在哪里',
     project: '项目',
     phase: '阶段',
