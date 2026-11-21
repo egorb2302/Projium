@@ -328,6 +328,15 @@ test('a repo named in plain prose is found: Repo: <path> without backticks, "cod
     const mention = 'Repo: ~/code/nebula\nThe old code in ~/code/secret-client was a fork.\n'
     assert.ok(!declaredRepos(code, 'Nebula Wallet', mention).includes(path.join(code, 'secret-client')), 'a path mentioned in a sentence does not count as a declared repo, so it cannot mark the card ignored')
     assert.ok(declaredRepos(code, 'Nebula Wallet', mention).includes(path.join(code, 'nebula')))
+    const tail = declaredRepos(code, 'Nebula Wallet', 'Repo: ~/code/nebula (forked from the old test client)\n')
+    assert.ok(!tail.some(p => p.includes('forked')), 'words after the path count only when that whole path exists')
+    for (const text of ['Code: / is the root\n', 'repo: ~/ home\n']) assert.ok(!declaredRepos(code, 'X', text).some(p => p === path.resolve('/') || p === home), `no bare root or home from ${JSON.stringify(text)}`)
+    fs.mkdirSync(path.join(code, 'secret-client', '.git'), { recursive: true })
+    assert.equal(repoOf(code, 'orbit', 'The old code in ~/code/secret-client was a fork.\n'), path.join(code, 'orbit'), 'the folder named like the card wins over a path in a sentence')
+    assert.equal(repoOf(code, 'Ghost', 'The old code in ~/code/secret-client was a fork.\n', undefined, null, false), null, 'without prose paths for the ignore check')
+    const t0 = Date.now()
+    repoOf(code, 'X', `Repo: /a${' '.repeat(50000)}x\n`)
+    assert.ok(Date.now() - t0 < 300, `a long line of spaces stays fast (${Date.now() - t0} ms)`)
   } finally {
     if (prev === undefined) delete process.env.HOME
     else process.env.HOME = prev

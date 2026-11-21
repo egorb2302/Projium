@@ -103,7 +103,7 @@ export const createApp = ({
   const timeByCard = new Map()
   let closedSeen = { at: -Infinity, names: new Set() }
   const closedNow = () => {
-    if (clock() - closedSeen.at < 5e3) return closedSeen.names
+    if (Math.abs(clock() - closedSeen.at) < 5e3) return closedSeen.names
     const names = new Set()
     for (const c of store.list()) if (c.error ? closedSeen.names.has(c.name) : c.fields.stage === 'closed') names.add(c.name)
     closedSeen = { at: clock(), names }
@@ -166,7 +166,7 @@ export const createApp = ({
     await exportShare().catch(e => console.error(new Date().toISOString(), 'share export failed', String(e?.message ?? e).slice(0, 200)))
   }
 
-  const isIgnored = card => ignored(card.name) || [repoOf(reposRoot, card.name, card.text, undefined, card.repoHint), ...declaredRepos(reposRoot, card.name, card.text, card.repoHint)].some(p => p && ignored(p))
+  const isIgnored = card => ignored(card.name) || [repoOf(reposRoot, card.name, card.text, undefined, card.repoHint, false), ...declaredRepos(reposRoot, card.name, card.text, card.repoHint)].some(p => p && ignored(p))
 
   const previewUrl = card => {
     const rel = previewPath(card.fields.preview, projectsRoot, path.relative(projectsRoot, path.dirname(card.file)).replace(/\\/g, '/'))
@@ -516,7 +516,11 @@ export const createApp = ({
       if (parts[0] === 'api' && parts[1] === 'projects' && parts[2] && req.method === 'POST') {
         const body = await readBody(req)
         if (body.instance !== undefined && body.instance !== instanceId(projectsRoot)) return send(res, 421, { error: 'this Projium serves another projects folder; nothing was written' })
-        if (parts[3] === 'field') return send(res, 200, await view(store.saveField(parts[2], body.key, body.value, body.expected, body.fileId), true))
+        if (parts[3] === 'field') {
+          const saved = store.saveField(parts[2], body.key, body.value, body.expected, body.fileId)
+          if (body.key === 'stage') closedSeen = { at: -Infinity, names: closedSeen.names }
+          return send(res, 200, await view(saved, true))
+        }
         if (parts[3] === 'task') return send(res, 200, await view(store.saveTask(parts[2], body, body.fileId), true))
         if (parts[3] === 'update') return send(res, 200, await view(store.saveUpdate(parts[2], body, body.fileId), true))
         if (parts[3] === 'refresh') {

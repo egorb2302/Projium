@@ -124,7 +124,6 @@ test('closing a project from the dashboard pauses its watch targets on the next 
   r = await call('POST', '/api/projects/shop/field', { key: 'stage', value: 'closed', expected: 'done', fileId: shop.fileId })
   assert.equal(r.status, 200)
   assert.equal(r.json.fields.stage, 'closed')
-  now += 10e3
   urls.length = 0
   await app.watchTick()
   assert.deepEqual(urls, ['https://blog.example'], 'the closed project is not checked')

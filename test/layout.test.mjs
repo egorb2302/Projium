@@ -168,6 +168,9 @@ test('a config that maps the word "closed" to another stage keeps reading it tha
   fs.writeFileSync(cfg, JSON.stringify({ projectsDir: dir, reposDir: dir, cards: { ...old, stages: { ...old.stages, archived: 'closed' } } }))
   const ok = await diagnose(dir, { file: cfg, probe: async () => ({ running: false, projium: false, sameInstance: false }) })
   assert.doesNotMatch(ok.hints.join('\n'), /closed stage/)
+  fs.writeFileSync(cfg, JSON.stringify({ projectsDir: dir, reposDir: dir, cards: { ...OWNER, stages: { ...OWNER.stages, '#closed': 'done' } } }))
+  const hashed = await diagnose(dir, { file: cfg, probe: async () => ({ running: false, projium: false, sameInstance: false }) })
+  assert.match(hashed.hints.join('\n'), /cards\.stages maps "#closed" to done/)
 })
 
 test('a stage name in another case reads as that stage (setup leaves such words out of cards.stages)', t => {
