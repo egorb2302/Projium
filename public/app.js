@@ -1018,7 +1018,7 @@ const renderSettings = async n => {
     const proj = inp(v.projectsDir, { placeholder: e.projectsDir?.path ?? '' })
     const repos = inp(v.reposDir, { placeholder: e.reposDir?.path ?? '' })
     const trans = inp(v.transcriptsDir, { placeholder: t('setTranscriptsPh') })
-    const zone = inp(v.utcOffset, { placeholder: e.utcOffset ?? s.computerOffset, pattern: '[+-][0-9]{2}:[0-9]{2}', class: 'mono narrow' })
+    const zone = inp(v.utcOffset, { placeholder: e.utcOffset ?? s.computerOffset, pattern: '[+\\-][0-9]{2}:[0-9]{2}|local', class: 'mono narrow' })
     const at = inp(v.digestAt || e.digestAt || '10:00', { type: 'time', class: 'narrow' })
     const lang = h('select', { class: 'narrow' }, LANGS.map(([l, name]) => h('option', { value: l, lang: l, selected: l === (v.digestLang || e.digestLang || 'en') }, name)))
     const port = inp(v.port, { type: 'number', min: '1', max: '65535', placeholder: String(e.port ?? 3210), class: 'narrow' })

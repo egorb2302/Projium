@@ -2,6 +2,10 @@
 
 Versions follow [semantic versioning](https://semver.org); each one is a git tag (`v0.4.0`). After pulling a new version, restart the server (`npm run --silent stop`, then `npm run --silent start:bg`, or log in again with autostart).
 
+## 1.0.1 (2026-11-21)
+
+- Settings: the time zone field's input pattern was not a valid expression for browsers (they compile `pattern` with the `v` flag, where a bare `-` in a character class is an error), so Chromium logged an error on the page and did not check the field. It now accepts what the config accepts, `+HH:MM`, `-HH:MM` or `local`, and a test compiles every input pattern of the interface the way browsers do.
+
 ## 1.0.0 (2026-11-21)
 
 - **Breaking:** `deadline` is now a Projium field, so a config that maps another field onto a frontmatter key named `deadline` (`cards.fields.<x>: "deadline"`) is refused at start. Map `deadline` itself instead, or point that field at another key.
