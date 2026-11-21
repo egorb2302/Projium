@@ -330,7 +330,7 @@ test('a repo named in plain prose is found: Repo: <path> without backticks, "cod
     assert.ok(declaredRepos(code, 'Nebula Wallet', mention).includes(path.join(code, 'nebula')))
     const tail = declaredRepos(code, 'Nebula Wallet', 'Repo: ~/code/nebula (forked from the old test client)\n')
     assert.ok(!tail.some(p => p.includes('forked')), 'words after the path count only when that whole path exists')
-    for (const text of ['Code: / is the root\n', 'repo: ~/ home\n']) assert.ok(!declaredRepos(code, 'X', text).some(p => p === path.resolve('/') || p === home), `no bare root or home from ${JSON.stringify(text)}`)
+    for (const text of ['Code: / is the root\n', 'repo: ~/ home\n', 'Repo: ~/...\n', 'Repo: ~/.\n', 'Code: /.\n', 'Code: /: none\n', 'Code: /** x */\n']) assert.ok(!declaredRepos(code, 'X', text).some(p => p === path.resolve('/') || p === home), `no bare root or home from ${JSON.stringify(text)}`)
     fs.mkdirSync(path.join(code, 'secret-client', '.git'), { recursive: true })
     assert.equal(repoOf(code, 'orbit', 'The old code in ~/code/secret-client was a fork.\n'), path.join(code, 'orbit'), 'the folder named like the card wins over a path in a sentence')
     assert.equal(repoOf(code, 'Ghost', 'The old code in ~/code/secret-client was a fork.\n', undefined, null, false), null, 'without prose paths for the ignore check')

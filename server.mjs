@@ -166,7 +166,7 @@ export const createApp = ({
     await exportShare().catch(e => console.error(new Date().toISOString(), 'share export failed', String(e?.message ?? e).slice(0, 200)))
   }
 
-  const isIgnored = card => ignored(card.name) || [repoOf(reposRoot, card.name, card.text, undefined, card.repoHint, false), ...declaredRepos(reposRoot, card.name, card.text, card.repoHint)].some(p => p && ignored(p))
+  const isIgnored = card => ignored(card.name) || [repoOf(reposRoot, card.name, card.text, undefined, card.repoHint), ...declaredRepos(reposRoot, card.name, card.text, card.repoHint)].some(p => p && ignored(p))
 
   const previewUrl = card => {
     const rel = previewPath(card.fields.preview, projectsRoot, path.relative(projectsRoot, path.dirname(card.file)).replace(/\\/g, '/'))

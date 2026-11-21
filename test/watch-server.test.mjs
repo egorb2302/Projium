@@ -135,6 +135,28 @@ test('closing a project from the dashboard pauses its watch targets on the next 
   assert.equal(r.json.find(p => p.name === 'shop').watch.open, 0)
 })
 
+test('the closed set is read again when the clock jumps back, and a card whose only repo is named in a sentence is ignored when that repo is', async t => {
+  const urls = []
+  let now = Date.parse('2026-11-21T12:00:00Z')
+  const away = temp(t)
+  fs.mkdirSync(path.join(away, 'secretapp', '.git'), { recursive: true })
+  const config = watchConfig({ failAfter: 1, recoverAfter: 1, targets: [{ name: 'shop-site', kind: 'site', url: 'https://shop.example', project: 'shop', certDays: 0 }] })
+  const { app, call } = await serve(t, { watch: config, watchGet: async url => (urls.push(url), { status: 200, headers: {} }), clock: () => now, ignore: ['secretapp'] })
+  await app.watchTick()
+  assert.deepEqual(urls, ['https://shop.example'])
+  const shopFile = (await call('GET', '/api/projects')).json.find(p => p.name === 'shop')
+  assert.equal(shopFile.ignored, false)
+  assert.equal((await call('GET', '/api/projects')).json.find(p => p.name === 'blog').ignored, false)
+  now -= 60e3
+  const projects = path.dirname(path.dirname(app.store.load('shop').file))
+  fs.writeFileSync(path.join(projects, 'shop', 'shop.md'), '---\nstage: closed\nstatus: live shop\n---\n\n# shop\n')
+  fs.writeFileSync(path.join(projects, 'blog', 'blog.md'), `---\nstage: development\n---\n\n# blog\n\nCode in ${path.join(away, 'secretapp')}.\n`)
+  urls.length = 0
+  await app.watchTick()
+  assert.deepEqual(urls, [], 'the set is not kept from a time that is now in the future')
+  assert.equal((await call('GET', '/api/projects')).json.find(p => p.name === 'blog').ignored, true)
+})
+
 test('two health rounds asked for at once share one round, so one slow failure is not counted twice', async t => {
   let probes = 0
   let release
