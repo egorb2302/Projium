@@ -12,7 +12,9 @@ It reads your cards and the project repos and shows, per project:
 - uptime of the live site and which feature flags are on in prod;
 - where the build time went, from Claude Code transcripts: Claude working, review, waiting for you, pauses (only timestamps and event kinds are kept; message text is never stored or shown).
 
-The list starts with what needs you: overdue and p1 tasks, deadlines in the next two days, sites that are down. Press `/` to search, sort by urgency, or switch to a dense table.
+The list starts with what needs you: open incidents, overdue and p1 tasks, project deadlines and task due dates in the next two days, sites that failed two checks in a row. Projects you shut down go under **Closed**: they leave In progress, raise nothing and their monitoring pauses. Press `/` to search, sort by urgency, or switch to a dense table.
+
+The interface, the daily digest, alerts and client pages come in 13 languages: English, Russian, Ukrainian, German, French, Spanish, Portuguese, Italian, Polish, Turkish, Chinese, Japanese and Korean (the picker in the header; the digest language in Settings).
 
 You can edit card fields and tasks from the dashboard, including tasks your agents wrote without a Projium id, and check off updates. It writes one field or one line at a time and never overwrites something you changed in Obsidian meanwhile: it shows what is there now and asks.
 
@@ -106,7 +108,7 @@ npm run --silent doctor
 | `ignore` | `[]` | Words, matched case-insensitively. For a project whose name or repo path contains one, the repo, its transcripts and its site are never touched; the card itself is still listed. Matched against the full repo path, so avoid words that appear in `reposDir`. |
 | `reviewAgents` | `["code-reviewer"]` | Claude Code subagent types counted as review time. |
 | `digest.at` | `10:00` | Local time of the daily digest. |
-| `digest.lang` | `en` | `en` or `ru`. |
+| `digest.lang` | `en` | Language of the digest and alerts: `en`, `ru`, `uk`, `de`, `fr`, `es`, `pt`, `it`, `pl`, `tr`, `zh`, `ja` or `ko`. |
 | `digest.command` | none | Command that sends the digest; the text is passed as the last argument. Overrides Telegram. |
 | `digest.env` | `[]` | Names of environment variables that command needs (for example `["SLACK_BOT_TOKEN"]`). `npm run start:bg` passes the server only system variables, Projium's own and these. |
 | `share` | none | Client status pages: `dir`, `every` (minutes between exports, 0 = on demand) and `projects` (card name → `show`, `title`, `lang`, `slug`). See [docs/share.md](docs/share.md). |
@@ -138,7 +140,16 @@ TELEGRAM_BOT_TOKEN=123456:ABC...
 TELEGRAM_CHAT_ID=123456789
 ```
 
-The digest lists projects in progress, next steps, urgent tasks, sites that are down, stale audits and overdue tasks in closed projects. If the computer was asleep at the set time, it goes out within a minute of waking, for that day only. If sending fails (no network, Telegram unreachable), it tries again after 15 minutes, 30 minutes, an hour, then every two hours, ten tries a day at most; each failure is logged with its reason (with `npm run start:bg`, in `server.err.log` next to the database, `data/` by default). Preview it without sending at http://127.0.0.1:3210/api/digest.
+The digest lists projects in progress, next steps, urgent tasks, sites that are down, stale audits, passed deadlines and overdue tasks in done projects (closed ones are left out). If the computer was asleep at the set time, it goes out within a minute of waking, for that day only. If sending fails (no network, Telegram unreachable), it tries again after 15 minutes, 30 minutes, an hour, then every two hours, ten tries a day at most; each failure is logged with its reason (with `npm run start:bg`, in `server.err.log` next to the database, `data/` by default). Preview it without sending at http://127.0.0.1:3210/api/digest.
+
+## How it is built
+
+- **No dependencies.** Node.js 24 and its standard library: `node:http` for the server, `node:sqlite` for local state, `node:test` for the tests. The one vendored file is the js-yaml parser. The interface is plain ES modules served from disk, with no build step.
+- **Your notes stay the source of truth.** Projium reads Markdown cards in the owner's own layout, keys and status words (mapped once in the config) and writes back one field or one checkbox line at a time. Every write is checked by parsing the YAML before and after, and is refused if anything else would change or the note changed meanwhile (HTTP 409 with the current value).
+- **Build time from agent transcripts.** A sweep over the timestamps in Claude Code session logs splits each project's time into Claude working, review, waiting for you, pauses and gaps, per milestone phase. Intervals are stored without message text, so the numbers survive when the app deletes a session.
+- **Launch Watch** runs a small state machine per check (open after N failures, close after M successes), sends one alert per incident and one per recovery, tells a dead network from a dead site, and refuses targets that resolve to private addresses.
+- **Agents as users.** An MCP server over stdio (both the 2024–2025 and the stateless 2026 protocol revisions) and a local JSON API let Claude Code, Codex or Cursor read projects and update them through the same checked writes. An `AGENTS.md` walks an agent through installing it for a stranger's vault.
+- **Tested the way it is used.** The suite covers write safety, transcript parsing, the watch state machine, the digest, client pages, setup and every language file (same keys as English, every text function returns a string). Before releases a fresh agent with no context installs it on a sample vault it has never seen and reports where it got stuck.
 
 ## Privacy and safety
 

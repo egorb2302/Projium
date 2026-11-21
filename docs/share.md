@@ -23,7 +23,7 @@ The page has `noindex` set, and the export folder gets a `robots.txt` that asks 
 
 ## Turn it on
 
-On the project page, **Client page** → **Share a status page**. Tick what to show, optionally give the page another title (the client's name for the project) and a language (English or Russian; the digest language by default), and **Save**. **Export now** writes the page; **Preview** opens it from the dashboard.
+On the project page, **Client page** → **Share a status page**. Tick what to show, optionally give the page another title (the client's name for the project) and a language (any of the 13 the dashboard has; the digest language by default), and **Save**. **Export now** writes the page; **Preview** opens it from the dashboard.
 
 Or in `tracker.config.json`:
 

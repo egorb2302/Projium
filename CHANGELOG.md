@@ -2,6 +2,18 @@
 
 Versions follow [semantic versioning](https://semver.org); each one is a git tag (`v0.4.0`). After pulling a new version, restart the server (`npm run --silent stop`, then `npm run --silent start:bg`, or log in again with autostart).
 
+## 1.0.0 (2026-11-21)
+
+- **13 languages.** The interface, the daily digest, Launch Watch alerts and client status pages are in English, Russian, Ukrainian, German, French, Spanish, Portuguese, Italian, Polish, Turkish, Chinese, Japanese and Korean. A language picker replaces the RU/EN switch; the browser language is used until you pick one. `digest.lang`, `watch.lang` and a client page's `lang` accept any of the codes. All texts of one language live in one file, `public/locales/<code>.js`, and a test checks every file against English.
+- **A `closed` stage** for projects that were shut down or dropped. A closed project leaves In progress and Needs attention, raises no signals, is left out of the digest and has its own filter. Its Launch Watch targets pause: they are not checked, an open incident ends as "project closed" without a message, and checks resume when the stage changes back. The setup wizard reads words like closed, archived or cancelled as `closed`; a config written before that maps "closed" to another stage keeps working.
+- **No more false "site down".** A failed uptime check is retried once after 3 seconds, and a site counts as down only after two failed checks in a row; a single failure shows an amber dot that says so. The digest and MCP `list_projects` use the same rule.
+- **Project deadline:** a `deadline` field (`YYYY-MM-DD`, read from a `deadline` key or a mapped one). While the project is in progress, a passed deadline is a red signal and one in the next two days an amber one; the digest prints it and `list_projects` returns it.
+- Repos named in plain text are found: `Repo: ~/code/x` or `**Repo:** <path>` without backticks, "code in <path>", or `Repo: <folder>` inside `reposDir`.
+- **Time page:** a project with sessions but fewer than two milestone times shows all its sessions together instead of nothing; each time category is explained in one line; each median says how many projects it comes from; the page says what it measures.
+- `doctor` warns when a later milestone is earlier than an earlier one (for example mainnet before the first push).
+- Clearer labels: Needs attention says what it is built from, "Start (spec received)", "Launch (mainnet)", "Spec → push" on cards with a tooltip, an empty Launch Watch page says what it would show.
+- Tables show a scroll shadow when they overflow on a phone; the fonts cover Latin-script languages beyond Western Europe.
+
 ## 0.11.1 (2026-11-06)
 
 - Repos reached through a folder link (a Windows junction or a symlink in `reposDir`, for example after moving projects to another disk and leaving a link at the old path) now count the build time of sessions opened at either path: the time split reads the transcripts saved under the link path and under the real path.
