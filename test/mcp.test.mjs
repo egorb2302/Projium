@@ -158,7 +158,8 @@ test('an agent reads and writes a project through the MCP server over stdio', { 
   const good = await check(config)
   assert.equal(good.code, 0, JSON.stringify(good.json))
   assert.equal(good.json.projects, 1)
-  assert.ok(good.json.register.claudeCode.includes(`--env "TRACKER_CONFIG=${config}"`), 'the registration keeps the config file')
+  const envWord = process.platform === 'win32' ? `"TRACKER_CONFIG=${config}"` : `'TRACKER_CONFIG=${config}'`
+  assert.ok(good.json.register.claudeCode.includes(`--env ${envWord}`), 'the registration keeps the config file')
   assert.ok(good.json.register.codex.startsWith('codex mcp add --env'))
   assert.match(good.json.register.codexToml, /^env = \{ TRACKER_CONFIG = ".+", PORT = "\d+" \}$/m)
   assert.equal(good.json.register.json.mcpServers.projium.env.TRACKER_CONFIG, config)

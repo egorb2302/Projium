@@ -1,6 +1,10 @@
 # Projium
 
+[![tests](https://github.com/egorb2302/Projium/actions/workflows/tests.yml/badge.svg)](https://github.com/egorb2302/Projium/actions/workflows/tests.yml) [![MIT license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) ![Node 24](https://img.shields.io/badge/node-%E2%89%A524-339933.svg) ![no dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)
+
 A local dashboard over your project notes, for builders who ship client projects with AI agents and keep a Markdown note per project (Obsidian or any folder of `.md` files). It reads your notes where they are, in your own layout, field names and status words.
+
+![Projium in 30 seconds: the project list, a project page, where the build time went, Launch Watch and the language picker](docs/projium-demo.gif)
 
 ![Projects](docs/screenshot-projects.png)
 
@@ -175,7 +179,7 @@ npm test
 
 ## Limits
 
-- Built and used daily on Windows; macOS and Linux should work but are less tested.
+- Used daily on Windows; the test suite runs on Windows, Linux and macOS on every push (the background start and autostart are checked by tests only on macOS and Linux, not on a real desktop session).
 - Restart the server after pulling new code; what changed is in [CHANGELOG.md](CHANGELOG.md).
 - Started with `npx`, Projium runs from npm's cache: autostart (`npm run --silent autostart`) needs a clone.
 - One computer only: reach it from a phone through your own tunnel (for example Tailscale) if you need to.
