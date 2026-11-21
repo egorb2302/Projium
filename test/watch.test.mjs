@@ -38,9 +38,10 @@ const rig = (t, raw, { env = {}, routes = {}, notify = true, lang = 'ru' } = {})
     if (v instanceof Error) throw v
     return { headers: {}, ...v }
   }
-  const make = cfg => createWatch({ db, config: watchConfig(cfg, env), notify: notify ? async text => void sent.push(text) : null, clock: () => now, get, lang, link: e => `http://127.0.0.1:3210/#/${e.project ? `p/${e.project}` : 'watch'}`, log: () => {} })
+  const closed = new Set()
+  const make = cfg => createWatch({ db, config: watchConfig(cfg, env), notify: notify ? async text => void sent.push(text) : null, clock: () => now, get, lang, link: e => `http://127.0.0.1:3210/#/${e.project ? `p/${e.project}` : 'watch'}`, paused: name => closed.has(name), log: () => {} })
   const w = make(raw)
-  return { db, w, sent, calls, make, routes, at: () => now, advance: ms => (now += ms) }
+  return { db, w, sent, calls, make, routes, closed, at: () => now, advance: ms => (now += ms) }
 }
 
 const site = (name, url, extra = {}) => ({ name, kind: 'site', url, certDays: 0, ...extra })
@@ -151,6 +152,32 @@ test('a site that goes down sends one message when the incident opens, none whil
   assert.equal(st.incidents[0].closedAt - st.incidents[0].openedAt, 30 * MIN)
   assert.deepEqual([st.incidents[0].openSent, st.incidents[0].closeSent], [true, true])
   assert.equal(st.targets[0].signals[0].status, 'ok')
+})
+
+test('targets of a closed project are paused: not checked, their open incident ends as closed without a message, and checks resume when it reopens', async t => {
+  const r = rig(t, { failAfter: 1, recoverAfter: 1, targets: [site('shop', 'https://shop.example', { project: 'Shop' }), site('blog', 'https://blog.example', { project: 'Blog' })] })
+  r.routes['https://blog.example'] = { status: 200 }
+  await r.w.tick()
+  assert.equal(r.sent.length, 1, 'the shop incident opens and is announced')
+  assert.equal(r.w.forProject('Shop').open, 1)
+  r.closed.add('Shop')
+  r.advance(5 * MIN)
+  const before = r.calls.length
+  await r.w.tick()
+  assert.deepEqual(r.calls.slice(before).map(c => c.url), ['https://blog.example'], 'only the open project is checked')
+  assert.equal(r.sent.length, 1, 'no recovery message for a closed project')
+  const st = r.w.status()
+  const shop = st.targets.find(x => x.name === 'shop')
+  assert.equal(shop.paused, true)
+  assert.equal(st.targets.find(x => x.name === 'blog').paused, false)
+  assert.equal(st.incidents[0].end, 'closed')
+  assert.notEqual(st.incidents[0].closedAt, null)
+  assert.equal(r.w.forProject('Shop').open, 0)
+  r.closed.delete('Shop')
+  r.advance(5 * MIN)
+  await r.w.tick()
+  assert.equal(r.w.status().targets.find(x => x.name === 'shop').signals[0].status, 'open', 'reopened: checked again and a new incident opens')
+  assert.equal(r.sent.length, 2)
 })
 
 test('a muted target is still checked, its messages wait for the end of the mute, and one that recovered meanwhile sends nothing', async t => {

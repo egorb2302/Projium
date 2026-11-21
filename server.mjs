@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createStore, Conflict, publicError } from './lib/store.mjs'
-import { validate, EDITABLE } from './lib/card.mjs'
+import { validate, EDITABLE, isActive } from './lib/card.mjs'
 import { repoOf, declaredRepos, readiness, freshness, updateFlags, releasePlan, updateBranches, ogImage, uncardedRepos } from './lib/repo.mjs'
 import { fetchConfig, updateStatus } from './lib/prod.mjs'
 import { createTimeCache, projectSplit, cardTime } from './lib/timesplit.mjs'
@@ -109,6 +109,7 @@ export const createApp = ({
     get: watchGet,
     lang: watchLang ?? digestLang,
     link: e => `http://127.0.0.1:${bound}/#/${e.project && store.list().some(c => c.name === e.project) ? `p/${encodeURIComponent(e.project)}` : 'watch'}`,
+    paused: name => store.load(name)?.fields?.stage === 'closed',
   })
 
   const shareSettings = () => (configFile ? loadConfig(here, configFile).share ?? { dir: path.join(path.dirname(path.resolve(configFile)), 'share'), every: 0, projects: [] } : shareOpt)
@@ -252,7 +253,7 @@ export const createApp = ({
   }
 
   const probeable = card => !card.error && !isIgnored(card) && card.fields.site && !validate('site', card.fields.site)
-  const watched = card => probeable(card) && card.fields.stage !== 'done'
+  const watched = card => probeable(card) && isActive(card.fields.stage)
   const checkProd = async card => {
     const [health, config] = await Promise.all([probeSite(card.fields.site), readConfig(card.fields.site)])
     recordHealth(db, card.name, health)

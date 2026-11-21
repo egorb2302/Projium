@@ -203,6 +203,7 @@ select.sort:hover { color: var(--text); }
 
 .attn { padding-bottom: 0; margin-bottom: 20px; }
 .attn h2 { margin-bottom: 0; }
+.attn-why { margin: 4px 0 10px; color: var(--muted); font-size: 12.5px; }
 .attn h2 .n { margin-left: 8px; font: 500 12px var(--mono); color: var(--warn); }
 .attn-row { display: grid; grid-template-columns: 8px minmax(120px, 200px) auto minmax(0, 1fr); gap: 14px; align-items: center; margin: 0 -16px; padding: 10px 16px; border-top: 1px solid var(--line); color: inherit; transition: background 0.12s; }
 .attn h2 + .attn-row { border-top: 0; }
@@ -270,6 +271,7 @@ select.sort:hover { color: var(--text); }
 .stage.review { color: var(--warn); background: rgba(245, 165, 36, 0.1); border-color: rgba(245, 165, 36, 0.25); }
 .stage.fixes { color: var(--violet); background: rgba(167, 139, 250, 0.1); border-color: rgba(167, 139, 250, 0.25); }
 .stage.done { color: var(--ok); background: rgba(62, 207, 142, 0.1); border-color: rgba(62, 207, 142, 0.25); }
+.stage.closed { color: var(--muted); background: var(--panel-2); border-color: var(--line-2); }
 
 .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--dim); flex: none; }
 .dot.ok { background: var(--ok); box-shadow: 0 0 0 3px rgba(62, 207, 142, 0.15); }

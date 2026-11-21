@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { todayIn, taskState, sortTasks, topTask, signalData, targetState, watchSummary } from '../public/logic.js'
+import { todayIn, taskState, sortTasks, topTask, signalData, targetState, watchSummary, isActive, inFilter, defaultFilter } from '../public/logic.js'
 
 const NOW = Date.UTC(2026, 10, 1, 9, 0)
 const task = (id, extra = {}) => ({ id, done: false, text: id, due: '', p: '', ...extra })
@@ -44,7 +44,7 @@ test('the most urgent task is the first one that is overdue, due soon or p1, not
 
 test('signals: ignored projects get none; p1, a down site and a stale audit only while the project is in work', () => {
   const tasks = [task('over', { due: '2026-10-20' }), task('p1', { p: 'p1' }), task('soon', { due: '2026-11-02' })]
-  const health = { last: { code: 503 } }
+  const health = { last: { code: 503 }, down: true }
   const repoInfo = { freshness: { state: 'changed-after', sinceLocal: 4, sinceOrigin: 2 } }
   const live = signalData(project({ tasks, health, repoInfo, fields: { stage: 'fixes', site: 'https://a.example' } }), NOW)
   assert.deepEqual(live.map(s => [s.kind, s.n]), [['down', 1], ['over', 1], ['p1', 1], ['soon', 1], ['stale', 4]])
@@ -53,6 +53,25 @@ test('signals: ignored projects get none; p1, a down site and a stale audit only
   assert.deepEqual(signalData(project({ tasks, ignored: true }), NOW), [])
   const up = signalData(project({ health: { last: { code: 200 } }, fields: { stage: 'fixes', site: 'https://a.example' } }), NOW)
   assert.deepEqual(up, [])
+})
+
+test('one failed check is not a down site: down needs the server flag set after two failed checks in a row', () => {
+  const once = signalData(project({ health: { last: { code: null, error: 'ABORT_ERR' }, down: false }, fields: { stage: 'fixes', site: 'https://a.example' } }), NOW)
+  assert.deepEqual(once, [])
+  const twice = signalData(project({ health: { last: { code: null, error: 'ABORT_ERR' }, down: true }, fields: { stage: 'fixes', site: 'https://a.example' } }), NOW)
+  assert.deepEqual(twice.map(s => s.kind), ['down'])
+})
+
+test('closed projects raise no signals at all and sit under their own filter, outside In progress', () => {
+  const tasks = [task('over', { due: '2026-10-20' }), task('p1', { p: 'p1' })]
+  const closed = project({ tasks, health: { last: { code: 503 }, down: true }, watch: { open: 3, targets: 4 }, fields: { stage: 'closed', site: 'https://a.example' } })
+  assert.deepEqual(signalData(closed, NOW), [])
+  const dev = project({ fields: { stage: 'development' } })
+  const done = project({ fields: { stage: 'done' } })
+  assert.deepEqual([dev, done, closed].map(isActive), [true, false, false])
+  assert.deepEqual(['open', 'done', 'closed', 'all'].map(f => [dev, done, closed].filter(p => inFilter(p, f)).length), [1, 1, 1, 3])
+  assert.equal(defaultFilter([done, closed]), 'all')
+  assert.equal(defaultFilter([done, dev]), 'open')
 })
 
 test('an open watch incident is a signal at any stage, ahead of the rest; targets read as open, ok, unknown or not checked yet', () => {
@@ -66,7 +85,8 @@ test('an open watch incident is a signal at any stage, ahead of the rest; target
     { signals: [sig('ok', 'skip')], mutedUntil: null },
     { signals: [sig('ok', null)], mutedUntil: null },
     { signals: [sig('ok', 'fail')], mutedUntil: null },
+    { signals: [sig('ok', null)], mutedUntil: null, paused: true },
   ]
-  assert.deepEqual(targets.map(targetState), ['open', 'ok', 'skip', 'wait', 'ok'])
-  assert.deepEqual(watchSummary(targets, NOW), { ok: 2, open: 1, wait: 1, skip: 1, muted: 1 })
+  assert.deepEqual(targets.map(targetState), ['open', 'ok', 'skip', 'wait', 'ok', 'paused'])
+  assert.deepEqual(watchSummary(targets, NOW), { ok: 2, open: 1, wait: 1, skip: 1, muted: 1, paused: 1 })
 })

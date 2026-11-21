@@ -76,11 +76,12 @@ test('the digest shows active projects with overdue tasks, a down site and a sta
           { text: 'late one', done: false, due: '2026-10-20', p: 'p2' },
           { text: 'finished', done: true, due: '2026-10-01', p: 'p1' },
         ],
-        health: { last: { code: 502 }, uptime24: 80 },
+        health: { last: { code: 502 }, down: true, uptime24: 80 },
         repoInfo: { freshness: { state: 'changed-after', commit: 'abc1234', sinceLocal: 3, sinceOrigin: 5, dirty: 0 } },
       }),
       card('beta', 'done', { tasks: [{ text: 'old debt', done: false, due: '2026-10-22', p: '' }, { text: 'no date', done: false, due: '', p: 'p1' }] }),
       card('gamma', 'done'),
+      card('shut-app', 'closed', { fields: { next_step: 'shut down' }, tasks: [{ text: 'never', done: false, due: '2026-10-01', p: 'p1' }] }),
       card('frozen rebuild', 'done'),
       card('paused-app', 'fixes', { fields: { next_step: 'Stopped' }, tasks: [{ text: 'stale', done: false, due: '2026-10-01', p: 'p1' }] }),
       { name: 'broken', error: 'bad frontmatter' },
@@ -99,7 +100,7 @@ test('the digest shows active projects with overdue tasks, a down site and a sta
   assert.match(text, /Задачи: 2 открыто\n- late one \(до 2026-10-20, просрочено\) p2\n- later p3/)
   assert.doesNotMatch(text, /finished/)
   assert.match(text, /Сроки в закрытых проектах:\n- beta: old debt \(до 2026-10-22, просрочено\)/)
-  assert.doesNotMatch(text, /no date|gamma/)
+  assert.doesNotMatch(text, /no date|gamma|shut-app|never/)
   assert.match(text, /- broken: bad frontmatter/)
   assert.ok(text.indexOf('Сроки в закрытых') < text.indexOf('В работе'), 'short urgent sections come first')
 })

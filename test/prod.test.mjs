@@ -7,7 +7,7 @@ import http from 'node:http'
 import dns from 'node:dns'
 import { execFileSync } from 'node:child_process'
 import { fetchConfig, updateStatus } from '../lib/prod.mjs'
-import { checkSite } from '../lib/health.mjs'
+import { checkSite, openDb, recordHealth, healthSummary } from '../lib/health.mjs'
 import { isPrivate } from '../lib/net.mjs'
 import { releasePlan, updateBranches } from '../lib/repo.mjs'
 import { buildDigest } from '../lib/digest.mjs'
@@ -92,6 +92,28 @@ test('an uptime check does not read the body of a huge page', async t => {
   const r = await checkSite(`${base}/`, 5000, dns.lookup)
   assert.equal(r.code, 200)
   assert.ok(wrote < 50e6, `stopped early, wrote ${wrote}`)
+})
+
+test('a failed site check is retried once before it is recorded, and the summary calls a site down only after two failed checks in a row', async t => {
+  let hits = 0
+  const base = await serve(t, { '/': res => (++hits === 1 ? res.socket.destroy() : (res.writeHead(200), res.end('ok'))) })
+  const r = await checkSite(`${base}/`, 5000, dns.lookup, 50)
+  assert.equal(r.code, 200, 'the retry answered')
+  assert.equal(hits, 2)
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-health-'))
+  const db = openDb(path.join(dir, 'h.db'))
+  t.after(() => {
+    db.close()
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 })
+  })
+  const now = Date.parse('2026-11-21T12:00:00Z')
+  recordHealth(db, 'a', { code: 200, ms: 10, error: null }, now - 30 * 60e3)
+  recordHealth(db, 'a', { code: null, ms: 15000, error: 'ABORT_ERR' }, now - 20 * 60e3)
+  assert.equal(healthSummary(db, 'a', now).down, false, 'one failed check')
+  recordHealth(db, 'a', { code: null, ms: 15000, error: 'ABORT_ERR' }, now - 10 * 60e3)
+  assert.equal(healthSummary(db, 'a', now).down, true, 'two in a row')
+  recordHealth(db, 'a', { code: 200, ms: 10, error: null }, now - 60e3)
+  assert.equal(healthSummary(db, 'a', now).down, false, 'back up')
 })
 
 test('release state: flags matched by name, branches by origin/main, loose site flags listed, no config means unknown', () => {

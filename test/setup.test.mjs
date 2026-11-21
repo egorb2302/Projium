@@ -66,7 +66,7 @@ test('note folders with project notes rank first, and folders with repos are cou
 })
 
 test('stage words are guessed into Projium stages', () => {
-  const cases = { 'in progress': 'development', active: 'development', live: 'development', 'waiting for client review': 'review', 'on hold': 'review', 'fixing bugs': 'fixes', shipped: 'done', Closed: 'done', 'Готов': 'done', 'на ревью': 'review', правки: 'fixes', review: 'review', done: 'done' }
+  const cases = { 'in progress': 'development', active: 'development', live: 'development', 'waiting for client review': 'review', 'on hold': 'review', 'fixing bugs': 'fixes', shipped: 'done', Closed: 'closed', archived: 'closed', cancelled: 'closed', delivered: 'done', 'Готов': 'done', 'на ревью': 'review', правки: 'fixes', review: 'review', done: 'done' }
   for (const [w, s] of Object.entries(cases)) assert.equal(guessStage(w), s, w)
 })
 

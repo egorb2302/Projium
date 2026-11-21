@@ -10,6 +10,11 @@ export const dayDiff = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86
 
 const PRIO = { p1: 0, p2: 1, p3: 2 }
 
+export const FINISHED = ['done', 'closed']
+export const isActive = p => !FINISHED.includes(p.fields.stage)
+export const inFilter = (p, filter) => (filter === 'all' ? true : filter === 'open' ? isActive(p) : p.fields.stage === filter)
+export const defaultFilter = projects => (projects.some(isActive) ? 'open' : 'all')
+
 export const taskState = (x, today) => (x.done || !x.due ? '' : x.due < today ? 'over' : dayDiff(today, x.due) <= 2 ? 'soon' : '')
 
 const taskRank = (x, today) => [x.done ? 1 : 0, taskState(x, today) === 'over' ? 0 : 1, PRIO[x.p] ?? 3, x.due || '9999']
@@ -28,6 +33,7 @@ export const topTask = (p, now) => {
 }
 
 export const targetState = t => {
+  if (t.paused) return 'paused'
   if (t.signals.some(s => s.status === 'open')) return 'open'
   if (t.signals.every(s => s.result == null)) return 'wait'
   if (t.signals.every(s => s.result == null || s.result === 'skip')) return 'skip'
@@ -35,7 +41,7 @@ export const targetState = t => {
 }
 
 export const watchSummary = (targets, now = Date.now()) => {
-  const out = { ok: 0, open: 0, wait: 0, skip: 0, muted: 0 }
+  const out = { ok: 0, open: 0, wait: 0, skip: 0, muted: 0, paused: 0 }
   for (const t of targets) {
     out[targetState(t)]++
     if (t.mutedUntil != null && t.mutedUntil > now) out.muted++
@@ -44,15 +50,14 @@ export const watchSummary = (targets, now = Date.now()) => {
 }
 
 export const signalData = (p, now) => {
-  if (p.ignored) return []
+  if (p.ignored || p.fields.stage === 'closed') return []
   const today = todayIn(p.zone, now)
   const open = p.tasks.filter(x => !x.done)
-  const live = p.fields.stage !== 'done'
+  const live = isActive(p)
   const over = open.filter(x => taskState(x, today) === 'over').length
   const soon = open.filter(x => taskState(x, today) === 'soon').length
   const p1 = live ? open.filter(x => x.p === 'p1' && taskState(x, today) !== 'over').length : 0
-  const last = p.health?.last
-  const down = live && p.fields.site && last && !(last.code != null && last.code < 400)
+  const down = live && p.fields.site && p.health?.down === true
   const f = p.repoInfo?.freshness ?? {}
   const behind = Math.max(f.sinceLocal ?? 0, f.sinceOrigin ?? 0)
   const stale = live && f.state === 'changed-after'
