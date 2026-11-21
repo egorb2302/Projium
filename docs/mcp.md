@@ -52,9 +52,9 @@ A non-default config file goes into the server's environment as `TRACKER_CONFIG`
 
 | Tool | Does | Writes |
 |---|---|---|
-| `list_projects` | Every project: stage, next step, open tasks, earliest due date, site state, audit freshness, readiness. `stage` filters; ignored projects only with `include_ignored`. | no |
+| `list_projects` | Every project: stage, next step, deadline, open tasks, earliest due date, site state (down after two failed checks in a row), audit freshness, readiness. `stage` filters (`development`, `review`, `fixes`, `done`, `closed`); ignored projects only with `include_ignored`. | no |
 | `get_project` | One project in full, as `GET /api/projects/<name>` returns it (without the uptime history), including `fileId`, `locked` fields and task ids. | no |
-| `set_field` | One field (`stage`, `next_step`, `site`, `accepted_by`, dates and milestone times), with `expected` and `fileId`. | the note |
+| `set_field` | One field (`stage`, `next_step`, `deadline`, `site`, `accepted_by`, dates and milestone times), with `expected` and `fileId`. Setting `closed` also pauses the project's Launch Watch targets. | the note |
 | `add_task` | An open task with optional `due` and `p`; the id is created. | the note |
 | `toggle_task` | Checks or unchecks a task, with `expected` (the task as read). A task without an id is given by `at`. | the note |
 | `edit_task` | Text, due date or priority of a task; left-out fields stay. A task without an id is given by `at` and gets an id. | the note |

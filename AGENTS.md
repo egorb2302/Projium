@@ -71,7 +71,7 @@ It prints every frontmatter key with how many notes use it, its value kinds (tex
 | `design approved` | `design_pick_at` |
 | `first deploy`, `first_push`, `live since` | `first_push_at` |
 | `launched`, `released`, `mainnet` | `mainnet_at` (the production launch; the name comes from crypto projects, it fits any launch) |
-| `deadline`, `due`, `due date` | `deadline` |
+| `deadline`, `due`, `due_date` | `deadline` |
 | `delivered`, `handed over` | `handed_over_at` |
 | `accepted` (a date) and the person who accepted the work | `accepted_at`, `accepted_by`. A `client` key usually names the customer, not who accepted: do not map it. |
 | `url`, `site`, `prod` | `site`: **ask first**, it turns on uptime checks |

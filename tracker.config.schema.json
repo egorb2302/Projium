@@ -19,7 +19,7 @@
       "additionalProperties": false,
       "properties": {
         "at": { "type": "string", "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$", "default": "10:00" },
-        "lang": { "enum": ["en", "ru"], "default": "en" },
+        "lang": { "enum": ["en", "ru", "uk", "de", "fr", "es", "pt", "it", "pl", "tr", "zh", "ja", "ko"], "default": "en" },
         "command": { "type": "array", "items": { "type": "string" }, "minItems": 1, "description": "Command that sends the digest; the text is appended as the last argument. Overrides Telegram." },
         "env": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Names of environment variables the digest command needs; npm run start:bg passes only these and a fixed list of system variables to the server." }
       }
@@ -56,7 +56,7 @@
         "every": { "type": "number", "minimum": 1, "maximum": 1440, "default": 5, "description": "Minutes between check rounds." },
         "failAfter": { "type": "integer", "minimum": 1, "maximum": 100, "default": 2, "description": "Failed checks in a row before an incident opens." },
         "recoverAfter": { "type": "integer", "minimum": 1, "maximum": 100, "default": 2, "description": "Good checks in a row before an incident closes." },
-        "lang": { "enum": ["en", "ru"], "description": "Alert language; defaults to digest.lang." },
+        "lang": { "enum": ["en", "ru", "uk", "de", "fr", "es", "pt", "it", "pl", "tr", "zh", "ja", "ko"], "description": "Alert language; defaults to digest.lang." },
         "command": { "type": "array", "items": { "type": "string" }, "minItems": 1, "description": "Command that sends alerts; the text is appended as the last argument. Defaults to the digest channel." },
         "env": { "type": "array", "items": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" }, "default": [], "description": "Environment variables the alert command needs; start:bg passes them to the server." },
         "rpc": {
@@ -111,7 +111,7 @@
             "properties": {
               "show": { "type": "array", "items": { "enum": ["stage", "progress", "updates", "uptime", "incidents", "status", "next_step", "tasks"] }, "default": ["stage", "progress", "updates", "uptime", "incidents"], "description": "status, next_step and tasks usually hold internal notes; they are off unless listed." },
               "title": { "type": "string", "maxLength": 80, "description": "Title on the page instead of the card name." },
-              "lang": { "enum": ["en", "ru"], "description": "Page language; defaults to digest.lang." },
+              "lang": { "enum": ["en", "ru", "uk", "de", "fr", "es", "pt", "it", "pl", "tr", "zh", "ja", "ko"], "description": "Page language; defaults to digest.lang." },
               "slug": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$", "description": "Folder name of the page; the dashboard picks one with a random part." }
             }
           }

@@ -16,11 +16,15 @@ The list starts with what needs you: open incidents, overdue and p1 tasks, proje
 
 The interface, the daily digest, alerts and client pages come in 13 languages: English, Russian, Ukrainian, German, French, Spanish, Portuguese, Italian, Polish, Turkish, Chinese, Japanese and Korean (the picker in the header; the digest language in Settings).
 
+![The project list in Japanese](docs/screenshot-projects-ja.png)
+
 You can edit card fields and tasks from the dashboard, including tasks your agents wrote without a Projium id, and check off updates. It writes one field or one line at a time and never overwrites something you changed in Obsidian meanwhile: it shows what is there now and asks.
 
 Optional: a daily digest to Telegram (or any command you name), and **Launch Watch** for what is live: sites and their certificates, a keeper heartbeat, low wallet balances (Solana, EVM), with one alert when an incident opens and one when it recovers, an incident history and muting for maintenance ([docs/watch.md](docs/watch.md)).
 
 ![Project page](docs/screenshot-project.png)
+
+![Time page](docs/screenshot-time.png)
 
 ![Launch Watch](docs/screenshot-watch.png)
 

@@ -2,7 +2,7 @@
 
 Launch Watch checks what you have live and tells you when it breaks: sites and their TLS certificates, a heartbeat your backend publishes as JSON, and the balance of wallets your keepers spend from. It sends one message when an incident opens and one when it recovers, keeps the incident history in `data/tracker.db`, and shows everything on the **Watch** page (key `3`).
 
-Targets come from the `watch` block of `tracker.config.json`, not from the cards, so a project marked `done` that is still live stays watched. Nothing is written into your notes.
+Targets come from the `watch` block of `tracker.config.json`, not from the cards, so a project marked `done` that is still live stays watched. The targets of a project whose card says `closed` pause: they are not checked, an open incident ends as "project closed" without a message, and checks resume when the stage changes back. Nothing is written into your notes.
 
 ## Config
 
@@ -29,7 +29,7 @@ Targets come from the `watch` block of `tracker.config.json`, not from the cards
 | `every` | `5` | Minutes between check rounds (1 to 1440). Each round makes one request per site, heartbeat and wallet, so 5 minutes stays polite to a public RPC. |
 | `failAfter` | `2` | Failed checks in a row before an incident opens. |
 | `recoverAfter` | `2` | Good checks in a row before it closes. |
-| `lang` | `digest.lang` | `en` or `ru` for the alert text. |
+| `lang` | `digest.lang` | Language of the alert text, any code `digest.lang` takes (`en`, `ru`, `uk`, `de`, `fr`, `es`, `pt`, `it`, `pl`, `tr`, `zh`, `ja`, `ko`). |
 | `command` | the digest channel | Command that sends alerts, like `digest.command`: the text is appended as the last argument. Without it, alerts go where the digest goes (`digest.command`, or `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env.local`). With neither, incidents show on the dashboard only. |
 | `env` | `[]` | Environment variable names the alert command needs (passed by `start:bg`, like `digest.env`). |
 | `rpc.solana` | `https://api.mainnet-beta.solana.com` | Solana JSON-RPC URL for balances. |
