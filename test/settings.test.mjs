@@ -98,7 +98,7 @@ test('a settings save that does not validate writes nothing', t => {
   const { here, file } = fixture(t)
   const before = fs.readFileSync(file, 'utf8')
   const hash = settingsHash(file)
-  for (const set of [{ projectsDir: '../missing' }, { projectsDir: '' }, { reposDir: 'nope' }, { utcOffset: 'MSK' }, { port: '70000' }, { digestAt: '25:00' }, { digestLang: 'de' }, { digestCommand: ['node', 3] }, { projectsDir: 'a\nb' }])
+  for (const set of [{ projectsDir: '../missing' }, { projectsDir: '' }, { reposDir: 'nope' }, { utcOffset: 'MSK' }, { port: '70000' }, { digestAt: '25:00' }, { digestLang: 'xx' }, { digestCommand: ['node', 3] }, { projectsDir: 'a\nb' }])
     assert.throws(() => applySettings(here, file, { hash, set }), Error, JSON.stringify(set))
   assert.throws(() => applySettings(here, file, { hash, watch: [{ op: 'add', target: { name: 'local', kind: 'site', url: 'ftp://x' } }] }), /http/)
   assert.throws(() => applySettings(here, file, { hash, watch: [{ op: 'add', target: { name: 'shop', kind: 'site', url: 'https://other.example' } }] }), /two targets/)

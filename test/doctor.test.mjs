@@ -162,7 +162,7 @@ test('init writes a config that loads, keeps a backup on --force and rejects bad
   bad(['--projects', path.join(dir, 'nope'), '--repos', dir], /--projects folder not found/)
   bad(['--projects', projects, '--repos', path.join(dir, 'nope')], /--repos folder not found/)
   bad(['--projects', projects, '--repos', dir, '--offset', 'MSK'], /utcOffset/)
-  bad(['--projects', projects, '--repos', dir, '--lang', 'de'], /digest.lang/)
+  bad(['--projects', projects, '--repos', dir, '--lang', 'xx'], /digest.lang/)
   bad(['--projects', projects, '--repos', dir, '--port', 'abc'], /--port must be a number/)
   bad(['--projects', projects, '--repos', dir, '--port', '70000'], /--port must be a number/)
   bad(['--projects', projects, '--repos', dir, '--bogus'], /bogus/)

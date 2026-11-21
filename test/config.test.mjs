@@ -75,7 +75,9 @@ test('a bad config is refused at start with a readable reason', t => {
     assert.throws(() => loadConfig(dir, file), reason)
   }
   bad({ digest: { command: 'node send.mjs' } }, /digest.command/)
-  bad({ digest: { lang: 'de' } }, /digest.lang/)
+  bad({ digest: { lang: 'xx' } }, /digest.lang must be one of en, ru, uk, de/)
+  fs.writeFileSync(file, JSON.stringify({ digest: { lang: 'ja' } }))
+  assert.equal(loadConfig(dir, file).digest.lang, 'ja', 'any listed language is accepted')
   bad({ ignore: 'secret' }, /ignore must be an array/)
   bad({ reviewAgents: [1] }, /reviewAgents must be an array/)
   bad({ port: 'abc' }, /port must be a number/)

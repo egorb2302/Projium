@@ -47,7 +47,7 @@ test('share config lists projects with a safe default and validates every key', 
   assert.deepEqual(c.projects[0], { name: 'Acme', show: SAFE, title: null, lang: null, slug: 'acme' })
   assert.deepEqual(c.projects[1], { name: 'Beta Shop', show: ['stage', 'next_step'], title: 'Beta', lang: 'ru', slug: 'beta-x1' })
   assert.equal(shareConfig(null, d => d), null)
-  for (const bad of [[], { every: -1 }, { every: 2000 }, { projects: [] }, { projects: { A: { show: ['secrets'] } } }, { projects: { A: { lang: 'de' } } }, { projects: { A: { slug: 'Bad Slug' } } }, { projects: { A: { title: 'x\ny' } } }, { projects: { 'a b': {}, 'a-b': {} } }, { dir: '' }])
+  for (const bad of [[], { every: -1 }, { every: 2000 }, { projects: [] }, { projects: { A: { show: ['secrets'] } } }, { projects: { A: { lang: 'xx' } } }, { projects: { A: { slug: 'Bad Slug' } } }, { projects: { A: { title: 'x\ny' } } }, { projects: { 'a b': {}, 'a-b': {} } }, { dir: '' }])
     assert.throws(() => shareConfig(bad, d => d), Error, JSON.stringify(bad))
   assert.deepEqual(shareUnknownKeys({ dirr: 1, projects: { A: { shw: [] } } }), ['share.dirr', 'share.projects["A"].shw'])
   assert.equal(slugOf('Проект'), slugOf('Проект'))
